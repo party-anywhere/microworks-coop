@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using HarmonyLib;
 using PartyAnywhere;
 using Steamworks;
@@ -90,6 +91,19 @@ namespace MicroWorksCoop.Net
         static void Postfix(Friend __instance, ref string __result)
         {
             if (Identity.TryLocalSeat(__instance.Id.Value, out int seat)) __result = Identity.SeatName(seat);
+        }
+    }
+
+    // Antes de mostrar nome e avatar (placar, votação) o jogo pede os dados da conta à Steam e espera a resposta.
+    // Um SteamID de jogador extra não é conta nenhuma: a resposta nunca vem e o placar ficava com "?".
+    [HarmonyPatch(typeof(Friend), nameof(Friend.RequestInfoAsync))]
+    static class FakeIdNeedsNoSteamInfo
+    {
+        static bool Prefix(Friend __instance, ref Task __result)
+        {
+            if (!Identity.TrySeat(__instance.Id.Value, out _)) return true;
+            __result = Task.CompletedTask;
+            return false;
         }
     }
 }
