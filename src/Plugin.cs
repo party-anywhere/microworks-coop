@@ -77,6 +77,8 @@ namespace MicroWorksCoop
                 // um jogo só: os outros jogadores do lobby entram nesta partida, com a tela dividida aqui
                 gameObject.AddComponent<LocalPlayers>();
                 gameObject.AddComponent<SplitScreen>();
+                if (Config.Bind("Desenvolvimento", "DiagnosticoTelaDividida", false, "Anota no log onde cada jogador aparece na câmera de quem hospeda.").Value)
+                    gameObject.AddComponent<SplitDiag>();
             }
             // para desenvolver: pular o tutorial e criar a partida sozinho (nada é gravado nas configurações do
             // jogo); pela linha de comando ou pelo BepInEx\config\com.joaocaioo.microworks-coop.cfg
