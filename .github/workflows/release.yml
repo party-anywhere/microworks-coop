@@ -1,0 +1,46 @@
+# Publica uma versão do jogo quando você cria uma tag vX.Y.Z (igual ao "version" do party-anywhere.json).
+# Quem já instalou recebe o aviso de atualização no Hub.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Compile o jogo e deixe na pasta build/ tudo o que vai para o jogador.
+      #    Troque este passo pelo build do seu projeto (cmake, dotnet, godot --export, ...).
+      - name: Build
+        shell: pwsh
+        run: |
+          if (-not (Test-Path build)) {
+            Write-Error "Coloque aqui o build do seu jogo, com a saída em build/."
+            exit 1
+          }
+
+      # 2. A ferramenta do Party Anywhere confere o manifesto e a capa e gera o pacote com o hash.
+      - name: Party Anywhere CLI
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --repo joaocaioo/party-anywhere --pattern "pa-windows-x64.exe" --output pa.exe
+
+      - name: Validar e empacotar
+        shell: pwsh
+        run: |
+          ./pa.exe validate
+          ./pa.exe pack --from build --tag "${{ github.ref_name }}"
+
+      # 3. O release leva o pacote e o party-anywhere.release.json; o Hub lê os dois.
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" (Get-ChildItem release).FullName --generate-notes

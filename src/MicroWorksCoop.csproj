@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Compila com o jogo instalado (as DLLs do MicroWorks não vão para o repositório).
+       Outra pasta: dotnet build -p:MicroWorksDir="D:\SteamLibrary\steamapps\common\MicroWorks" -->
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>MicroWorksCoop</AssemblyName>
+    <RootNamespace>MicroWorksCoop</RootNamespace>
+    <LangVersion>9.0</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Optimize>true</Optimize>
+    <DebugType>none</DebugType>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>$(MSBuildThisFileDirectory)..\build\BepInEx\plugins\MicroWorksCoop\</OutputPath>
+    <MicroWorksDir Condition="'$(MicroWorksDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\MicroWorks</MicroWorksDir>
+    <Managed>$(MicroWorksDir)\MicroWorks_Data\Managed</Managed>
+    <BepInExCore>$(MSBuildThisFileDirectory)..\vendor\BepInEx\BepInEx\core</BepInExCore>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx" HintPath="$(BepInExCore)\BepInEx.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(BepInExCore)\0Harmony.dll" Private="false" />
+    <Reference Include="Assembly-CSharp" HintPath="$(Managed)\Assembly-CSharp.dll" Private="false" />
+    <Reference Include="Mirror" HintPath="$(Managed)\Mirror.dll" Private="false" />
+    <Reference Include="Telepathy" HintPath="$(Managed)\Telepathy.dll" Private="false" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(Managed)\Newtonsoft.Json.dll" Private="false" />
+    <Reference Include="Facepunch.Steamworks.Win64" HintPath="$(Managed)\Facepunch.Steamworks.Win64.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(Managed)\UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(Managed)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(Managed)\UnityEngine.IMGUIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UI" HintPath="$(Managed)\UnityEngine.UI.dll" Private="false" />
+    <Reference Include="Unity.TextMeshPro" HintPath="$(Managed)\Unity.TextMeshPro.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- build/ fica como a pasta do jogo depois de instalar (é o que o "pa pack" empacota):
+       o BepInEx (carregador, LGPL-2.1) e o mod em BepInEx\plugins -->
+  <Target Name="StageBepInEx" AfterTargets="Build">
+    <ItemGroup>
+      <BepInExCoreFiles Include="$(BepInExCore)\*.dll" />
+      <BepInExRootFiles Include="$(BepInExCore)\..\..\winhttp.dll;$(BepInExCore)\..\..\doorstop_config.ini" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BepInExCoreFiles)" DestinationFolder="$(MSBuildThisFileDirectory)..\build\BepInEx\core" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BepInExRootFiles)" DestinationFolder="$(MSBuildThisFileDirectory)..\build" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CheckInputs" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(Managed)\Assembly-CSharp.dll')" Text="MicroWorks não encontrado em '$(MicroWorksDir)'. Passe -p:MicroWorksDir=&quot;pasta do jogo&quot;." />
+    <Error Condition="!Exists('$(BepInExCore)\BepInEx.dll')" Text="BepInEx não encontrado. Rode antes: powershell -File scripts\fetch-bepinex.ps1" />
+  </Target>
+</Project>

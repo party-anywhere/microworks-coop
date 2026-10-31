@@ -1,0 +1,117 @@
+{
+  "$schema": "https://raw.githubusercontent.com/joaocaioo/party-anywhere/main/schema/game-manifest.v1.json",
+  "manifestVersion": 1,
+  "id": "com.joaocaioo.microworks-coop",
+  "name": "MicroWorks Co-op Local",
+  "tagline": "Até 10 pessoas no mesmo PC, cada uma com a sua tela no MicroWorks.",
+  "description": "README.md",
+  "authors": [
+    "joaocaioo"
+  ],
+  "license": "MIT",
+  "version": "0.1.0",
+  "art": {
+    "cover": "assets/cover.png"
+  },
+  "players": {
+    "min": 1,
+    "max": 10,
+    "recommended": 6
+  },
+  "sdk": {
+    "abi": 1
+  },
+  "tags": [
+    "mod",
+    "co-op"
+  ],
+  "requires": {
+    "baseGame": {
+      "name": "MicroWorks",
+      "steamAppId": 1233410,
+      "exe": "MicroWorks.exe",
+      "acceptedSha256": []
+    }
+  },
+  "install": {
+    "source": "github-release",
+    "asset": "microworks-coop-{version}.zip",
+    "target": "baseGame",
+    "files": [
+      {
+        "from": "BepInEx/core/0Harmony.dll",
+        "to": "BepInEx/core/0Harmony.dll"
+      },
+      {
+        "from": "BepInEx/core/0Harmony20.dll",
+        "to": "BepInEx/core/0Harmony20.dll"
+      },
+      {
+        "from": "BepInEx/core/BepInEx.Harmony.dll",
+        "to": "BepInEx/core/BepInEx.Harmony.dll"
+      },
+      {
+        "from": "BepInEx/core/BepInEx.Preloader.dll",
+        "to": "BepInEx/core/BepInEx.Preloader.dll"
+      },
+      {
+        "from": "BepInEx/core/BepInEx.dll",
+        "to": "BepInEx/core/BepInEx.dll"
+      },
+      {
+        "from": "BepInEx/core/HarmonyXInterop.dll",
+        "to": "BepInEx/core/HarmonyXInterop.dll"
+      },
+      {
+        "from": "BepInEx/core/Mono.Cecil.Mdb.dll",
+        "to": "BepInEx/core/Mono.Cecil.Mdb.dll"
+      },
+      {
+        "from": "BepInEx/core/Mono.Cecil.Pdb.dll",
+        "to": "BepInEx/core/Mono.Cecil.Pdb.dll"
+      },
+      {
+        "from": "BepInEx/core/Mono.Cecil.Rocks.dll",
+        "to": "BepInEx/core/Mono.Cecil.Rocks.dll"
+      },
+      {
+        "from": "BepInEx/core/Mono.Cecil.dll",
+        "to": "BepInEx/core/Mono.Cecil.dll"
+      },
+      {
+        "from": "BepInEx/core/MonoMod.RuntimeDetour.dll",
+        "to": "BepInEx/core/MonoMod.RuntimeDetour.dll"
+      },
+      {
+        "from": "BepInEx/core/MonoMod.Utils.dll",
+        "to": "BepInEx/core/MonoMod.Utils.dll"
+      },
+      {
+        "from": "BepInEx/plugins/MicroWorksCoop/MicroWorksCoop.dll",
+        "to": "BepInEx/plugins/MicroWorksCoop/MicroWorksCoop.dll"
+      },
+      {
+        "from": "doorstop_config.ini",
+        "to": "doorstop_config.ini"
+      },
+      {
+        "from": "winhttp.dll",
+        "to": "winhttp.dll"
+      }
+    ]
+  },
+  "launch": {
+    "exe": "MicroWorks.exe",
+    "args": [
+      "-screen-fullscreen",
+      "0",
+      "-popupwindow",
+      "-screen-width",
+      "{width}",
+      "-screen-height",
+      "{height}"
+    ],
+    "workingDir": ".",
+    "copies": "perPlayer"
+  }
+}

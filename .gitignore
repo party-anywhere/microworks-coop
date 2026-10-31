@@ -1,0 +1,6 @@
+# saída do build e pacotes gerados pelo `pa pack`
+/build/
+/release/
+/vendor/
+bin/
+obj/
