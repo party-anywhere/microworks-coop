@@ -162,6 +162,27 @@ namespace MicroWorksCoop.Local
         }
     }
 
+    // O que chega para o personagem de um extra (ClientRpc, TargetRpc) roda como no jogo dele: ali ele é o jogador
+    // local. Sem isso o jogo acha que o personagem é de outro PC e manda de novo, para sempre (o teleporte do
+    // começo de cada minigame travava o jogo assim).
+    [HarmonyPatch(typeof(NetworkIdentity), "HandleRemoteCall")]
+    static class RemoteCallsInSeatContext
+    {
+        static void Prefix(NetworkIdentity __instance, MirrorInvokeType invokeType, out SeatContext.Token __state)
+        {
+            __state = default;
+            if (invokeType == MirrorInvokeType.Command || __instance == null) return;
+            int seat = SeatContext.SeatOf(__instance);
+            if (seat >= 0) __state = SeatContext.Enter(seat);
+        }
+
+        static Exception Finalizer(Exception __exception, SeatContext.Token __state)
+        {
+            SeatContext.Exit(__state);
+            return __exception;
+        }
+    }
+
     // No Start do jogador local, o jogo marca no servidor qual é o personagem de quem hospeda. Um jogador extra
     // passa por esse caminho (é "local" no contexto dele): a marca volta para o de quem hospeda.
     [HarmonyPatch(typeof(PlayerController), "Start")]
