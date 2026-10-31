@@ -4,6 +4,7 @@ using BepInEx.Logging;
 using HarmonyLib;
 using Mirror;
 using MicroWorksCoop.Input;
+using MicroWorksCoop.Local;
 using MicroWorksCoop.Net;
 using PartyAnywhere;
 using UnityEngine;
@@ -66,7 +67,17 @@ namespace MicroWorksCoop
             Application.runInBackground = true;
             new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
             gameObject.AddComponent<CursorOverlay>();
-            if (!IsLeader) gameObject.AddComponent<CopyJoiner>();
+            if (OpenedByHubAsCopy)
+            {
+                // uma cópia do jogo por jogador (o Hub abriu): as extras entram na partida da que hospeda
+                if (!IsLeader) gameObject.AddComponent<CopyJoiner>();
+            }
+            else
+            {
+                // um jogo só: os outros jogadores do lobby entram nesta partida, com a tela dividida aqui
+                gameObject.AddComponent<LocalPlayers>();
+                gameObject.AddComponent<SplitScreen>();
+            }
             // para desenvolver: pular o tutorial e criar a partida sozinho (nada é gravado nas configurações do
             // jogo); pela linha de comando ou pelo BepInEx\config\com.joaocaioo.microworks-coop.cfg
             bool devSkip = Config.Bind("Desenvolvimento", "PularTutorial", false, "A cópia que hospeda pula o tutorial.").Value;

@@ -68,7 +68,10 @@ namespace MicroWorksCoop.Net
     {
         static void Postfix(ref SteamId __result)
         {
-            if (!Plugin.IsLeader && __result.Value != 0) __result = Identity.Fake(__result.Value, Plugin.Seat);
+            if (__result.Value == 0) return;
+            // uma cópia por jogador: a cópia extra é sempre a vaga dela; um jogo só: quem estiver em contexto
+            if (!Plugin.IsLeader) __result = Identity.Fake(__result.Value, Plugin.Seat);
+            else if (Local.SeatContext.IsExtra) __result = Identity.Fake(__result.Value, Local.SeatContext.Seat);
         }
     }
 

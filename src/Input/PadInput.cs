@@ -1,11 +1,13 @@
+using MicroWorksCoop.Local;
 using PartyAnywhere;
 using UnityEngine;
 
 namespace MicroWorksCoop.Input
 {
     /// <summary>
-    /// O controle da vaga desta cópia, traduzido para as ações do MicroWorks (que só tem teclado e mouse:
-    /// o adaptador XInput do jogo vem vazio). Lido uma vez por frame; nada aqui aloca.
+    /// O controle de cada vaga, traduzido para as ações do MicroWorks (que só tem teclado e mouse: o adaptador
+    /// XInput do jogo vem vazio). Quem pergunta é sempre o jogador em contexto (SeatContext): o código de cada
+    /// personagem lê o controle da vaga dele. Lido uma vez por frame para todas as vagas; nada aqui aloca.
     /// </summary>
     static class PadInput
     {
@@ -22,20 +24,26 @@ namespace MicroWorksCoop.Input
         const float ScrollPerSec = 6f;
 
         static int frame = -1;
-        static bool routing;
-        static Pad pad;
-        static uint held, pressed, released;
+        static readonly Pad[] pads = new Pad[Client.MaxSeats];
+        static readonly bool[] active = new bool[Client.MaxSeats];
+        static readonly uint[] held = new uint[Client.MaxSeats];
+        static readonly uint[] pressed = new uint[Client.MaxSeats];
+        static readonly uint[] released = new uint[Client.MaxSeats];
+        static bool hostRouting;
         static bool menu;
         static Vector2 cursor;
 
-        /// <summary>Menu aberto (o jogo soltou o mouse): o stick esquerdo move um cursor só desta cópia.</summary>
-        public static bool InMenu { get { Tick(); return routing && menu; } }
-        public static Vector2 CursorPosition { get { Tick(); return cursor; } }
-
         static readonly CVar<float> mouseSensitivity = CVars.GetBinding<float>("prf_fMouseSensitivity");
 
-        /// <summary>true quando esta cópia obedece ao controle da vaga dela (e ignora teclado, mouse e controles do PC).</summary>
-        public static bool Routing { get { Tick(); return routing; } }
+        /// <summary>Menu aberto (o jogo soltou o mouse): o stick de quem hospeda move um cursor na tela.</summary>
+        public static bool InMenu { get { Tick(); return hostRouting && menu; } }
+        public static Vector2 CursorPosition { get { Tick(); return cursor; } }
+
+        /// <summary>
+        /// true quando o jogo deve ouvir o controle da vaga (e ignorar teclado, mouse e controles do PC): sempre para
+        /// um jogador extra; para quem hospeda, quando a vaga dele tem alguém no Party Anywhere.
+        /// </summary>
+        public static bool Routing { get { Tick(); return SeatContext.IsExtra || hostRouting; } }
 
         /// <summary>Lê o Hub uma vez por frame, na primeira pergunta do jogo ou no Update do plugin.</summary>
         public static void Tick()
@@ -45,47 +53,54 @@ namespace MicroWorksCoop.Input
             frame = now;
 
             Client hub = Plugin.Hub;
-            bool was = routing;
-            if (hub == null) routing = false;
-            else
+            if (hub != null) hub.Poll();
+            for (int s = 0; s < Client.MaxSeats; s++)
             {
-                hub.Poll();
-                routing = Plugin.Active && hub.GetPad(Plugin.Seat, out pad);
+                active[s] = hub != null && Plugin.Active && hub.GetPad(s, out pads[s]);
+                if (!active[s]) pads[s] = default;
+                Pad pad = pads[s];
+                uint h = (uint)pad.Held;
+                if (pad.Rt > TriggerOn) h |= RT;
+                if (pad.Lt > TriggerOn) h |= LT;
+                if (pad.Ly > StickOn) h |= StickUp;
+                if (pad.Ly < -StickOn) h |= StickDown;
+                if (pad.Lx < -StickOn) h |= StickLeft;
+                if (pad.Lx > StickOn) h |= StickRight;
+                pressed[s] = h & ~held[s];
+                released[s] = ~h & held[s];
+                held[s] = h;
             }
-            if (!routing) pad = default;
-            if (routing != was)
-                Plugin.Log.LogInfo(routing ? $"P{Plugin.Seat + 1}: esta cópia obedece ao controle da vaga" : $"P{Plugin.Seat + 1}: sem jogador na vaga; teclado e mouse do PC de volta");
 
-            uint h = (uint)pad.Held;
-            if (pad.Rt > TriggerOn) h |= RT;
-            if (pad.Lt > TriggerOn) h |= LT;
-            if (pad.Ly > StickOn) h |= StickUp;
-            if (pad.Ly < -StickOn) h |= StickDown;
-            if (pad.Lx < -StickOn) h |= StickLeft;
-            if (pad.Lx > StickOn) h |= StickRight;
-            pressed = h & ~held;
-            released = ~h & held;
-            held = h;
+            bool was = hostRouting;
+            hostRouting = active[Plugin.Seat];
+            if (hostRouting != was)
+                Plugin.Log.LogInfo(hostRouting ? $"P{Plugin.Seat + 1}: obedece ao controle da vaga" : $"P{Plugin.Seat + 1}: sem jogador na vaga; teclado e mouse do PC de volta");
 
             bool wasMenu = menu;
             menu = Cursor.lockState != CursorLockMode.Locked;
             if (menu && (!wasMenu || cursor.x < 0f)) cursor = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
-            if (menu && routing)
+            if (menu && hostRouting)
             {
+                Pad p = pads[Plugin.Seat];
                 float step = Screen.height * CursorScreensPerSec * Time.unscaledDeltaTime;
-                cursor.x = Mathf.Clamp(cursor.x + Curve(pad.Lx) * step, 0f, Screen.width - 1);
-                cursor.y = Mathf.Clamp(cursor.y + Curve(pad.Ly) * step, 0f, Screen.height - 1);
+                cursor.x = Mathf.Clamp(cursor.x + Curve(p.Lx) * step, 0f, Screen.width - 1);
+                cursor.y = Mathf.Clamp(cursor.y + Curve(p.Ly) * step, 0f, Screen.height - 1);
             }
         }
 
-        /// <summary>Roda do mouse nos menus: stick direito para cima e para baixo.</summary>
-        public static Vector2 Scroll => new Vector2(0f, menu ? Curve(pad.Ry) * ScrollPerSec * Time.unscaledDeltaTime : 0f);
+        /// <summary>Roda do mouse nos menus: stick direito de quem hospeda para cima e para baixo.</summary>
+        public static Vector2 Scroll => new Vector2(0f, Menu ? Curve(pads[Plugin.Seat].Ry) * ScrollPerSec * Time.unscaledDeltaTime : 0f);
+
+        // os menus são de quem hospeda: no contexto de um jogador extra, nunca há menu
+        static bool Menu => menu && !SeatContext.IsExtra;
+        static int Seat => SeatContext.Seat;
 
         // ---- ações do InputManager (Luminosity) ----
 
         /// <summary>false: ação que o mod não conhece (o jogo responde neutro, sem teclado nem mouse).</summary>
         public static bool TryAxis(string name, out float value)
         {
+            Pad pad = pads[Seat];
             switch (name)
             {
                 case "Horizontal": value = pad.Lx; return true;
@@ -106,7 +121,7 @@ namespace MicroWorksCoop.Input
         {
             if (name == "Horizontal" || name == "Vertical")
             {
-                float v = name == "Horizontal" ? pad.Lx : pad.Ly;
+                float v = name == "Horizontal" ? pads[Seat].Lx : pads[Seat].Ly;
                 value = edge == Edge.Held && (v > 0.1f || v < -0.1f);
                 return true;
             }
@@ -132,7 +147,7 @@ namespace MicroWorksCoop.Input
                 case "PlayerList": bits = (uint)Buttons.Back; return true;
                 case "Dismiss": bits = (uint)Buttons.A; return true;
                 // menus: A confirma; B volta só com um menu aberto (no jogo, B é agachar); Start pausa
-                case "UI_Submit": bits = menu ? 0u : (uint)Buttons.A; return true; // com o cursor virtual, A já clica
+                case "UI_Submit": bits = Menu ? 0u : (uint)Buttons.A; return true; // com o cursor virtual, A já clica
                 case "UI_Cancel": bits = (uint)Buttons.Start | (NonExclusiveState.IsNonExclusive ? (uint)Buttons.B : 0u); return true;
                 case "UI_Up": bits = (uint)Buttons.Up | StickUp; return true;
                 case "UI_Down": bits = (uint)Buttons.Down | StickDown; return true;
@@ -151,7 +166,7 @@ namespace MicroWorksCoop.Input
             uint bits;
             switch (key)
             {
-                case KeyCode.Mouse0: bits = menu ? RT | (uint)Buttons.A : RT; break; // nos menus, A clica
+                case KeyCode.Mouse0: bits = Menu ? RT | (uint)Buttons.A : RT; break; // nos menus, A clica
                 case KeyCode.Mouse1: bits = LT; break;
                 case KeyCode.Mouse2: bits = (uint)Buttons.LS; break;
                 case KeyCode.Escape: bits = (uint)Buttons.Start; break;
@@ -179,7 +194,10 @@ namespace MicroWorksCoop.Input
 
         public static bool Mouse(int button, Edge edge) => button >= 0 && button <= 2 && Key(KeyCode.Mouse0 + button, edge);
 
-        public static bool AnyKey(bool down) => down ? pressed != 0 : held != 0;
+        public static bool AnyKey(bool down) => down ? pressed[Seat] != 0 : held[Seat] != 0;
+
+        /// <summary>A vaga tem alguém conectado agora (controle ou celular).</summary>
+        public static bool SeatActive(int seat) { Tick(); return active[seat]; }
 
         // ---- interno ----
 
@@ -197,13 +215,13 @@ namespace MicroWorksCoop.Input
             switch (edge)
             {
                 case Edge.Down: return Pressed(bits);
-                case Edge.Up: return (released & bits) != 0;
+                case Edge.Up: return (released[Seat] & bits) != 0;
                 default: return Held(bits);
             }
         }
 
-        static bool Held(uint bits) => (held & bits) != 0;
-        static bool Pressed(uint bits) => (pressed & bits) != 0;
+        static bool Held(uint bits) => (held[Seat] & bits) != 0;
+        static bool Pressed(uint bits) => (pressed[Seat] & bits) != 0;
     }
 
     enum Edge { Held, Down, Up }
