@@ -11,7 +11,7 @@
   "license": "MIT",
   "version": "0.1.0",
   "art": {
-    "cover": "assets/cover.png"
+    "cover": "steam"
   },
   "players": {
     "min": 1,
@@ -105,5 +105,138 @@
     "args": [],
     "workingDir": ".",
     "copies": "one"
+  },
+  "controls": {
+    "modes": [
+      {
+        "name": "Jogar",
+        "pieces": [
+          {
+            "kind": "START",
+            "x": 0.0599,
+            "y": 0.09,
+            "s": 1.0,
+            "label": "Pausa"
+          },
+          {
+            "kind": "LB",
+            "x": 0.1521,
+            "y": 0.24,
+            "s": 1.0,
+            "label": "Correr"
+          },
+          {
+            "kind": "stickL",
+            "x": 0.1659,
+            "y": 0.68,
+            "s": 1.1,
+            "label": "Andar"
+          },
+          {
+            "kind": "RB",
+            "x": 0.8571,
+            "y": 0.22,
+            "s": 1.0,
+            "label": "Empurrar"
+          },
+          {
+            "kind": "RT",
+            "x": 0.8571,
+            "y": 0.4,
+            "s": 1.0,
+            "label": "Atirar"
+          },
+          {
+            "kind": "stickR",
+            "x": 0.8571,
+            "y": 0.74,
+            "s": 1.0,
+            "label": "Mirar"
+          },
+          {
+            "kind": "X",
+            "x": 0.6912,
+            "y": 0.52,
+            "s": 1.1,
+            "label": "Usar"
+          },
+          {
+            "kind": "A",
+            "x": 0.6912,
+            "y": 0.8,
+            "s": 1.2,
+            "label": "Pular"
+          },
+          {
+            "kind": "B",
+            "x": 0.5714,
+            "y": 0.86,
+            "s": 1.0,
+            "label": "Agachar"
+          }
+        ]
+      },
+      {
+        "name": "Mais",
+        "pieces": [
+          {
+            "kind": "BACK",
+            "x": 0.0599,
+            "y": 0.09,
+            "s": 1.0,
+            "label": "Jogadores"
+          },
+          {
+            "kind": "LS",
+            "x": 0.1521,
+            "y": 0.26,
+            "s": 1.0,
+            "label": "Extra"
+          },
+          {
+            "kind": "stickL",
+            "x": 0.1659,
+            "y": 0.68,
+            "s": 1.1,
+            "label": "Andar"
+          },
+          {
+            "kind": "RS",
+            "x": 0.8571,
+            "y": 0.22,
+            "s": 1.0,
+            "label": "Frente"
+          },
+          {
+            "kind": "LT",
+            "x": 0.8571,
+            "y": 0.4,
+            "s": 1.0,
+            "label": "Tiro 2"
+          },
+          {
+            "kind": "Y",
+            "x": 0.8571,
+            "y": 0.72,
+            "s": 1.1,
+            "label": "Reações"
+          },
+          {
+            "kind": "dpad",
+            "x": 0.6636,
+            "y": 0.7,
+            "s": 1.0,
+            "label": "Votar"
+          },
+          {
+            "kind": "A",
+            "x": 0.5069,
+            "y": 0.86,
+            "s": 1.0,
+            "label": "Pular"
+          }
+        ]
+      }
+    ]
   }
 }
