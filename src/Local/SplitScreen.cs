@@ -40,6 +40,13 @@ namespace MicroWorksCoop.Local
         int lastCount;
         bool split;
 
+        /// <summary>Jogadores do sofá na partida (quem hospeda e os extras).</summary>
+        public static int LocalPlayers { get; private set; }
+        /// <summary>A parte da TV de quem hospeda (coordenadas de câmera, 0..1); a tela toda sem divisão.</summary>
+        public static Rect HostPart { get; private set; } = new Rect(0f, 0f, 1f, 1f);
+        /// <summary>Quem hospeda está jogando pela tela do celular (fora da TV).</summary>
+        public static bool HostOnPhone { get; private set; }
+
         void LateUpdate()
         {
             HudCopies.Tick();
@@ -86,6 +93,7 @@ namespace MicroWorksCoop.Local
             bool wasSplit = split;
             split = order.Count > 1 && Layers();
             lastCount = order.Count;
+            LocalPlayers = order.Count;
             if (!split && wasSplit) RestoreMasks();
             if (split && rescan) OtherCamerasSeeBodies();
             if (order.Count == 0) return;
@@ -97,6 +105,7 @@ namespace MicroWorksCoop.Local
                 RenderTexture phone = place < 0 ? PhoneViews.TargetFor(HubSeat(i)) : null;
                 Rect part = phone != null || tv.Count == 1 ? full : Grid.Part(tv.Count, place);
                 Place(order[i], seats[i], i, part, listen: i == 0, phone);
+                if (seats[i] < 0) { HostPart = part; HostOnPhone = phone != null; }
             }
         }
 

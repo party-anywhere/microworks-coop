@@ -81,6 +81,7 @@ namespace MicroWorksCoop.Local
                 pending = null;
             }
             if (session != null && (coord == null || coord.Microgame != session.Game || Time.unscaledTime > session.Ends)) EndAll();
+            HostPda.Update(hidden: session != null && HostNeedsPanel());
 
             for (int seat = 0; seat < Client.MaxSeats; seat++)
             {
@@ -236,6 +237,88 @@ namespace MicroWorksCoop.Local
                 (words[i], words[j]) = (words[j], words[i]);
             }
             return words.ToArray();
+        }
+
+        /// <summary>
+        /// O PDA do jogo é de quem hospeda e foi feito para a tela inteira: com mais de um jogador do sofá, ele fica só
+        /// na parte de quem hospeda (encolhido, como o HUD da partida), e some quando quem hospeda responde pelo
+        /// painel (controle ou celular). Assim cada um vê uma pergunta, a dele, e ninguém tem a tela coberta.
+        /// </summary>
+        static class HostPda
+        {
+            static RectTransform placed;
+            static Vector2 anchorMin, anchorMax, pivot, position, size;
+            static Vector3 scale;
+            static CanvasGroup fade;
+
+            public static void Update(bool hidden)
+            {
+                PDA pda = PDA.singleton;
+                RectTransform top = pda != null ? TopOf(pda.PDAObject.transform) : null;
+                if (top != placed) Restore();
+                if (top == null) return;
+                if (SplitScreen.LocalPlayers < 2) { Restore(); return; }
+                if (placed == null) Save(top);
+
+                // escondido (quem hospeda responde no painel ou joga pelo celular), ou na parte dele na TV
+                bool hide = hidden || SplitScreen.HostOnPhone;
+                if (fade == null)
+                {
+                    fade = pda.PDAObject.GetComponent<CanvasGroup>();
+                    if (fade == null) fade = pda.PDAObject.AddComponent<CanvasGroup>();
+                }
+                float alpha = hide ? 0f : 1f;
+                if (fade.alpha != alpha) fade.alpha = alpha;
+
+                Rect part = SplitScreen.HostPart;
+                var canvas = (RectTransform)top.parent;
+                float fit = Mathf.Min(part.width, part.height);
+                if (top.anchorMin != part.center) top.anchorMin = top.anchorMax = part.center;
+                if (top.pivot != new Vector2(0.5f, 0.5f)) top.pivot = new Vector2(0.5f, 0.5f);
+                if (top.anchoredPosition != Vector2.zero) top.anchoredPosition = Vector2.zero;
+                if (top.sizeDelta != canvas.rect.size) top.sizeDelta = canvas.rect.size;
+                if (top.localScale.x != fit) top.localScale = new Vector3(fit, fit, 1f);
+            }
+
+            // a peça de primeiro nível da tela (Canvas raiz) onde o PDA está; já dentro de uma parte: nada a fazer
+            static RectTransform TopOf(Transform t)
+            {
+                Canvas[] canvases = t.GetComponentsInParent<Canvas>(true);
+                if (canvases.Length == 0) return null;
+                Transform root = canvases[canvases.Length - 1].transform;
+                for (Transform x = t; x != null && x.parent != null; x = x.parent)
+                {
+                    if (x.name == "PartyAnywhere.Part") return null;
+                    if (x.parent == root) return x as RectTransform;
+                }
+                return null;
+            }
+
+            static void Save(RectTransform top)
+            {
+                placed = top;
+                anchorMin = top.anchorMin;
+                anchorMax = top.anchorMax;
+                pivot = top.pivot;
+                position = top.anchoredPosition;
+                size = top.sizeDelta;
+                scale = top.localScale;
+            }
+
+            static void Restore()
+            {
+                if (fade != null) fade.alpha = 1f;
+                if (placed != null)
+                {
+                    placed.anchorMin = anchorMin;
+                    placed.anchorMax = anchorMax;
+                    placed.pivot = pivot;
+                    placed.anchoredPosition = position;
+                    placed.sizeDelta = size;
+                    placed.localScale = scale;
+                }
+                placed = null;
+            }
         }
 
         // ---- o painel de uma vaga ----
