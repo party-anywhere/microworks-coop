@@ -22,9 +22,11 @@ namespace MicroWorksCoop.Local
         static readonly CVar<bool> thirdPerson = CVars.GetBinding<bool>("prf_bThirdPerson");
 
         readonly List<PlayerController> order = new List<PlayerController>(Client.MaxSeats);
+        readonly List<int> seats = new List<int>(Client.MaxSeats); // a vaga de cada um em order (-1: quem hospeda)
         readonly Dictionary<int, Camera[]> cameras = new Dictionary<int, Camera[]>();
         readonly Dictionary<int, AudioListener[]> listeners = new Dictionary<int, AudioListener[]>();
-        readonly Dictionary<int, RectTransform[]> huds = new Dictionary<int, RectTransform[]>();
+        readonly Dictionary<int, RectTransform[]> huds = new Dictionary<int, RectTransform[]>();      // HUD do jogador
+        readonly Dictionary<int, RectTransform[]> matchHuds = new Dictionary<int, RectTransform[]>(); // HUD da partida
         readonly Dictionary<int, Renderer[]> bodies = new Dictionary<int, Renderer[]>();
         readonly Dictionary<int, int> originalMask = new Dictionary<int, int>(); // câmera → máscara do jogo
         int[] bodyLayers;  // uma camada livre por posição na grade
@@ -35,14 +37,16 @@ namespace MicroWorksCoop.Local
 
         void LateUpdate()
         {
+            HudCopies.Tick();
             order.Clear();
+            seats.Clear();
             NetworkIdentity hostId = NetworkServer.active ? NetworkServer.localConnection?.identity : null;
             PlayerController host = hostId != null ? hostId.GetComponent<PlayerController>() : null;
-            if (host != null) order.Add(host);
+            if (host != null) { order.Add(host); seats.Add(-1); }
             for (int s = 0; s < Client.MaxSeats; s++)
             {
                 PlayerController pc = SeatContext.PlayerOf(s);
-                if (pc != null) order.Add(pc);
+                if (pc != null) { order.Add(pc); seats.Add(s); }
             }
 
             if (Time.unscaledTime >= nextRescan || order.Count != lastCount)
@@ -51,6 +55,7 @@ namespace MicroWorksCoop.Local
                 cameras.Clear();
                 listeners.Clear();
                 huds.Clear();
+                matchHuds.Clear();
                 bodies.Clear();
             }
             bool rescan = cameras.Count == 0;
@@ -64,11 +69,11 @@ namespace MicroWorksCoop.Local
             for (int i = 0; i < order.Count; i++)
             {
                 Rect part = split ? Grid.Part(order.Count, i) : new Rect(0f, 0f, 1f, 1f);
-                Place(order[i], i, part, listen: i == 0);
+                Place(order[i], seats[i], i, part, listen: i == 0);
             }
         }
 
-        void Place(PlayerController pc, int index, Rect part, bool listen)
+        void Place(PlayerController pc, int seat, int index, Rect part, bool listen)
         {
             int id = pc.GetInstanceID();
             if (!cameras.TryGetValue(id, out Camera[] cams)) cameras[id] = cams = pc.GetComponentsInChildren<Camera>(true);
@@ -89,19 +94,39 @@ namespace MicroWorksCoop.Local
 
             if (split) ShowBody(pc, id, bodyLayers[index]);
 
-            // o HUD do jogador (mira, avisos de "usar") fica por cima de tudo, como no jogo, mas dentro da parte
-            // dele: o conteúdo de cada tela do HUD vai para uma moldura do tamanho e no lugar da parte do jogador
-            if (pc.playerHUD == null) return;
-            if (!huds.TryGetValue(id, out RectTransform[] frames)) huds[id] = frames = Frames(pc.playerHUD);
+            // os HUDs ficam por cima de tudo, como no jogo, mas dentro da parte do jogador: o conteúdo de cada tela
+            // do HUD vai para uma moldura no lugar da parte dele.
+            // O do jogador (mira, avisos de "usar") se estica até a parte, um pouco menor quanto menor ela for.
+            if (!huds.TryGetValue(id, out RectTransform[] frames))
+                huds[id] = frames = pc.playerHUD != null ? Frames(pc.playerHUD.GetComponentsInChildren<Canvas>(true)) : new RectTransform[0];
+            float scale = Mathf.Clamp(Mathf.Sqrt(part.width * part.height) * 1.25f, 0.35f, 1f);
+            Vector2 center = part.center;
             foreach (RectTransform frame in frames)
+                if (frame != null) Fit(frame, center, Size(frame, part.size / scale), scale, Vector2.zero);
+            // O da partida (rodada, placar, resultado) é montado a partir do meio da tela: encolhe inteiro, sem
+            // mudar a proporção, no alto da parte. O meio da moldura continua sendo o meio (as animações do jogo
+            // contam a partir dele); ela só sobe até encostar no alto
+            if (!matchHuds.TryGetValue(id, out RectTransform[] match)) matchHuds[id] = match = Frames(HudCopies.CanvasesOf(seat));
+            float fit = Mathf.Min(part.width, part.height);
+            var top = new Vector2(part.center.x, part.yMax);
+            foreach (RectTransform frame in match)
             {
                 if (frame == null) continue;
-                if (frame.anchorMin != part.min || frame.anchorMax != part.max)
-                {
-                    frame.anchorMin = part.min;
-                    frame.anchorMax = part.max;
-                }
+                Vector2 full = Size(frame, Vector2.one);
+                Fit(frame, top, full, fit, new Vector2(0f, -full.y * fit / 2f));
             }
+        }
+
+        // o tamanho, nas unidades da tela do HUD, de uma fração dela
+        static Vector2 Size(RectTransform frame, Vector2 fraction) => Vector2.Scale(((RectTransform)frame.parent).rect.size, fraction);
+
+        static void Fit(RectTransform frame, Vector2 anchor, Vector2 size, float scale, Vector2 offset)
+        {
+            if (frame.anchorMin != anchor || frame.anchorMax != anchor) frame.anchorMin = frame.anchorMax = anchor;
+            if (frame.pivot != new Vector2(0.5f, 0.5f)) frame.pivot = new Vector2(0.5f, 0.5f);
+            if (frame.anchoredPosition != offset) frame.anchoredPosition = offset;
+            if (frame.sizeDelta != size) frame.sizeDelta = size;
+            if (frame.localScale.x != scale) frame.localScale = new Vector3(scale, scale, 1f);
         }
 
         // o corpo do jogador na camada dele, ligado (o jogo o desliga em primeira pessoa por ser "local")
@@ -158,10 +183,10 @@ namespace MicroWorksCoop.Local
         }
 
         // cada tela (Canvas) raiz do HUD ganha uma moldura que ocupa a parte do jogador; o que estava nela vai junto
-        static RectTransform[] Frames(GameObject hud)
+        static RectTransform[] Frames(IEnumerable<Canvas> canvases)
         {
             var frames = new List<RectTransform>();
-            foreach (Canvas canvas in hud.GetComponentsInChildren<Canvas>(true))
+            foreach (Canvas canvas in canvases)
             {
                 if (canvas == null || !canvas.isRootCanvas) continue;
                 Transform existing = canvas.transform.Find(FrameName);
@@ -169,8 +194,6 @@ namespace MicroWorksCoop.Local
                 var go = new GameObject(FrameName, typeof(RectTransform));
                 var frame = (RectTransform)go.transform;
                 frame.SetParent(canvas.transform, false);
-                frame.offsetMin = Vector2.zero;
-                frame.offsetMax = Vector2.zero;
                 // na mesma ordem (é a ordem de desenho)
                 var children = new List<Transform>();
                 foreach (Transform child in canvas.transform) if (child != frame) children.Add(child);
