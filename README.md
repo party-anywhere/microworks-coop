@@ -30,5 +30,8 @@ Com um agente de IA (Claude e outros), é só pedir *"instale este mod no Party 
 
 ## Desenvolver
 
-- `pa validate` confere o manifesto e a capa.
-- Crie a tag `vX.Y.Z` (igual ao `version` do `party-anywhere.json`) para publicar uma versão.
+- Precisa do MicroWorks instalado (o build usa as DLLs dele, que não vão para o repositório) e do .NET SDK.
+- `powershell -File scripts\dev-install.ps1` compila e copia o mod para o jogo.
+- `powershell -File scriptselease.ps1` compila, confere o manifesto e gera o pacote em `release\`; com
+  `-Publicar`, cria o release `vX.Y.Z` (igual ao `version` do `party-anywhere.json`) no GitHub. O build não roda
+  no GitHub Actions porque precisa do jogo.
