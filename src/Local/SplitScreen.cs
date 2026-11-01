@@ -58,6 +58,7 @@ namespace MicroWorksCoop.Local
                 matchHuds.Clear();
                 bodies.Clear();
             }
+            SplitGraphics.Update(order.Count);
             bool rescan = cameras.Count == 0;
             bool wasSplit = split;
             split = order.Count > 1 && Layers();

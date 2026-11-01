@@ -86,6 +86,8 @@ namespace MicroWorksCoop
             bool devHost = Config.Bind("Desenvolvimento", "CriarPartidaSozinho", false, "A cópia que hospeda cria a partida assim que o menu carrega.").Value;
             CopyQualityPreset = Config.Bind("Video", "QualidadeNasCopias", "VeryLow",
                 "Preset de vídeo do jogo nas cópias abertas pelo Hub (VeryLow, Low, Medium, High, Ultra; vazio = as suas configurações). Não muda as suas configurações.").Value;
+            SplitGraphics.Preset = Config.Bind("Video", "QualidadeComVariosJogadores", "VeryLow",
+                "Preset de vídeo do jogo enquanto a tela está dividida (VeryLow, Low, Medium, High, Ultra; vazio = as suas configurações). Com um jogador só, voltam as suas. Não muda as suas configurações.").Value;
             if (Config.Bind("Desenvolvimento", "MedirDesempenho", false, "Cada cópia anota fps e memória no log a cada 10 s.").Value)
                 gameObject.AddComponent<PerfLog>();
             DevSkipTutorial = devSkip || Array.IndexOf(args, "-pa-skip-tutorial") >= 0;
