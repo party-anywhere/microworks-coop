@@ -16,7 +16,8 @@ Com um agente de IA (Claude e outros), é só pedir *"instale este mod no Party 
 
 - **Um jogo só.** Quem hospeda cria a partida e cada pessoa do lobby do Party Anywhere entra nela como um
   jogador de verdade: aparece no placar, joga os microgames e troca de fase como num jogo online.
-- **Tela dividida automática:** 1; 2 lado a lado; 2x2; 3x2; 3x3; 4x3. Cada parte tem o HUD do seu jogador
+- **Tela dividida automática, sem faixa preta:** os jogadores se dividem por igual entre as linhas e cada linha
+  ocupa a largura toda (3 = 2+1, 5 = 3+2, 7 = 3+2+2, 10 = 4+3+3). Cada parte tem o HUD do seu jogador
   (rodada, placar, posição, "PASSOU/FALHOU"), e a tela se reorganiza quando alguém entra, sai ou passa a
   jogar pelo celular.
 - **Celular:** com "Tela do jogo no celular" ligada, a parte daquela pessoa vai para o celular dela e sai da TV.

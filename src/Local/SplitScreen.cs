@@ -102,34 +102,17 @@ namespace MicroWorksCoop.Local
 
         int HubSeat(int i) => seats[i] < 0 ? Plugin.Seat : seats[i];
 
-        // com a última linha incompleta (3, 5, 7, 8, 10 jogadores) sobram cantos que nenhuma câmera desenha: ali
-        // ficaria a imagem de quadros antigos
+        // todos jogando pelo celular: nenhuma câmera desenha na TV
         void OnGUI()
         {
             if (order.Count == 0 || UnityEngine.Event.current.type != UnityEngine.EventType.Repaint) return;
+            if (tv.Count > 0) return;
             Color was = GUI.color;
             GUI.color = Color.black;
-            if (tv.Count == 0)
-            {
-                // todos jogando pelo celular: a TV fica escura, com o aviso
-                GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
-                GUI.color = Color.white;
-                var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = Screen.height / 24 };
-                GUI.Label(new Rect(0f, 0f, Screen.width, Screen.height), "Todos jogando pelo celular", style);
-                GUI.color = was;
-                return;
-            }
-            GUI.color = was;
-            int n = tv.Count;
-            if (n < 2) return;
-            (int cols, int rows) = Grid.Shape(n);
-            int empty = cols * rows - n;
-            if (empty == 0) return;
-            float w = Screen.width / (float)cols, h = Screen.height / (float)rows;
-            float shift = empty * w / 2f, y = Screen.height - h; // a última linha, de cima para baixo na tela
-            GUI.color = Color.black;
-            GUI.DrawTexture(new Rect(0f, y, shift, h), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(Screen.width - shift, y, shift, h), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = Screen.height / 24 };
+            GUI.Label(new Rect(0f, 0f, Screen.width, Screen.height), "Todos jogando pelo celular", style);
             GUI.color = was;
         }
 
@@ -304,7 +287,11 @@ namespace MicroWorksCoop.Local
         }
     }
 
-    /// <summary>A grade da tela dividida (igual à do Hub, pa-core::split), em coordenadas de câmera (0..1, y para cima).</summary>
+    /// <summary>
+    /// A grade da tela dividida, em coordenadas de câmera (0..1, y para cima). As linhas são as da grade do Hub
+    /// (1; 2 lado a lado; 2x2; 3x2; 3x3; 4x3), mas os jogadores se dividem por igual entre elas e cada linha ocupa
+    /// a largura toda: nunca sobra canto vazio (10 = 4+3+3; 7 = 3+2+2; 3 = 2+1).
+    /// </summary>
     static class Grid
     {
         public static (int cols, int rows) Shape(int n)
@@ -317,15 +304,26 @@ namespace MicroWorksCoop.Local
             return (4, 3);
         }
 
+        /// <summary>Quantos jogadores ficam na linha (de cima para baixo): as primeiras levam a sobra.</summary>
+        public static int InRow(int n, int row)
+        {
+            int rows = Shape(n).rows;
+            return n / rows + (row < n % rows ? 1 : 0);
+        }
+
         public static Rect Part(int n, int i)
         {
-            (int cols, int rows) = Shape(n);
-            int row = i / cols, col = i % cols;
-            int inRow = Mathf.Min(n - row * cols, cols);
-            float w = 1f / cols, h = 1f / rows;
-            float shift = (cols - inRow) * w / 2f; // linha incompleta: no meio
-            // a grade conta as linhas de cima para baixo; a câmera conta y de baixo para cima
-            return new Rect(col * w + shift, 1f - (row + 1) * h, w, h);
+            int rows = Shape(n).rows;
+            float h = 1f / rows;
+            for (int row = 0, first = 0; row < rows; first += InRow(n, row), row++)
+            {
+                int inRow = InRow(n, row);
+                if (i >= first + inRow) continue;
+                float w = 1f / inRow;
+                // a grade conta as linhas de cima para baixo; a câmera conta y de baixo para cima
+                return new Rect((i - first) * w, 1f - (row + 1) * h, w, h);
+            }
+            return new Rect(0f, 0f, 1f, 1f);
         }
     }
 }
