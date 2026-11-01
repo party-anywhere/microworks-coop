@@ -59,6 +59,9 @@ namespace MicroWorksCoop.Local
 
         public static Token Enter(int seat)
         {
+            // já é a vez dele: nada a fazer. Assim só a entrada de fora troca e volta, e a ordem em que o Harmony
+            // fecha os patches de um mesmo método (a mesma da abertura, não a inversa) não deixa ninguém preso
+            if (current == seat || players[seat] == null) return default; // sem personagem ainda: sem contexto
             var t = new Token { Entered = true, PreviousSeat = current, PreviousLocal = (NetworkIdentity)localPlayerField.GetValue(null), PreviousGlobal = GlobalData.localPlayer };
             current = seat;
             PlayerController pc = players[seat];
@@ -83,6 +86,9 @@ namespace MicroWorksCoop.Local
             if (componentSeat.TryGetValue(id, out int seat)) return seat;
             PlayerController pc = c.GetComponentInParent<PlayerController>();
             seat = pc != null && rootSeat.TryGetValue(pc.gameObject.GetInstanceID(), out int s) ? s : -1;
+            // o que não é do personagem mas é dele (a cópia do HUD), mesmo desligado
+            for (Transform t = c.transform; seat < 0 && pc == null && t != null; t = t.parent)
+                if (t.TryGetComponent(out SeatOwner owner)) seat = owner.Seat;
             componentSeat[id] = seat;
             return seat;
         }
@@ -98,6 +104,7 @@ namespace MicroWorksCoop.Local
         static readonly HashSet<Type> seen = new HashSet<Type>();
         static readonly Dictionary<Type, FieldInfo> iteratorOwner = new Dictionary<Type, FieldInfo>();
         static Harmony harmony;
+        const BindingFlags Declared = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
         public static void PatchTypesOf(GameObject root)
         {
@@ -113,15 +120,15 @@ namespace MicroWorksCoop.Local
                 if (!seen.Add(t) || Skip(t)) continue;
                 foreach (string name in unityMessages)
                 {
-                    MethodInfo m = AccessTools.DeclaredMethod(t, name, Type.EmptyTypes);
+                    MethodInfo m = t.GetMethod(name, Declared, null, Type.EmptyTypes, null);
                     if (m == null || m.IsAbstract) continue;
                     harmony.Patch(m, new HarmonyMethod(typeof(ContextPatcher), nameof(Prefix)), finalizer: new HarmonyMethod(typeof(ContextPatcher), nameof(Finalizer)));
                 }
                 // corrotinas: o código depois de cada "yield" também é do personagem
                 foreach (Type nested in t.GetNestedTypes(BindingFlags.NonPublic))
                 {
-                    FieldInfo owner = AccessTools.Field(nested, "<>4__this");
-                    MethodInfo moveNext = AccessTools.DeclaredMethod(nested, "MoveNext");
+                    FieldInfo owner = nested.GetField("<>4__this", Declared);
+                    MethodInfo moveNext = nested.GetMethod("MoveNext", Declared, null, Type.EmptyTypes, null);
                     if (owner == null || moveNext == null || !typeof(System.Collections.IEnumerator).IsAssignableFrom(nested)) continue;
                     iteratorOwner[nested] = owner;
                     harmony.Patch(moveNext, new HarmonyMethod(typeof(ContextPatcher), nameof(IteratorPrefix)), finalizer: new HarmonyMethod(typeof(ContextPatcher), nameof(Finalizer)));
