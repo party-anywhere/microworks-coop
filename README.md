@@ -1,6 +1,6 @@
 # MicroWorks Co-op Local
 
-Uma frase curta que vende o jogo.
+Até 10 pessoas no mesmo PC e no mesmo MicroWorks, cada uma na sua parte da tela ou no celular.
 
 ## Jogar
 
@@ -14,12 +14,18 @@ Com um agente de IA (Claude e outros), é só pedir *"instale este mod no Party 
 
 ## Como este mod funciona
 
-Mod co-op local para **MicroWorks**. Quem instala precisa ter o jogo na Steam; o Hub acha a pasta sozinho, copia os arquivos do mod com backup e abre o jogo.
-
-- O mod é uma DLL carregada pelo jogo (por um proxy como `version.dll`/`dinput8.dll` ou um ASI loader). Ajuste `install.files` no `party-anywhere.json` para o nome que o jogo carrega.
-- Os jogadores chegam pelo `sdk/party_anywhere.h`: chame `pa_poll` no mesmo ponto em que o jogo lê os controles e use `pa_get_pad` para cada vaga.
-- Em `requires.baseGame.acceptedSha256`, coloque o hash do `MicroWorks.exe` da versão que o mod suporta.
-- Só jogos sem anti-cheat, e nada de distribuir arquivos do jogo original.
+- **Um jogo só.** Quem hospeda cria a partida e cada pessoa do lobby do Party Anywhere entra nela como um
+  jogador de verdade: aparece no placar, joga os microgames e troca de fase como num jogo online.
+- **Tela dividida automática:** 1; 2 lado a lado; 2x2; 3x2; 3x3; 4x3. Cada parte tem o HUD do seu jogador
+  (rodada, placar, posição, "PASSOU/FALHOU"), e a tela se reorganiza quando alguém entra, sai ou passa a
+  jogar pelo celular.
+- **Celular:** com "Tela do jogo no celular" ligada, a parte daquela pessoa vai para o celular dela e sai da TV.
+- **Quem é quem:** no placar, cada jogador do PC aparece com a cor da vaga e "P1".."P10".
+- **Vídeo:** com mais de um jogador na tela, o mod usa o preset mais leve do jogo só durante a partida; as suas
+  configurações não mudam.
+- **Sala:** sem o Party Pass do MicroWorks, a partida é uma sala pública (regra do jogo). O mod não contorna
+  isso.
+- Precisa da sua cópia do MicroWorks na Steam. O mod usa o BepInEx (incluído) e não distribui arquivos do jogo.
 
 ## Desenvolver
 

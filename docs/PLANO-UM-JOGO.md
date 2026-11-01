@@ -36,18 +36,47 @@ a de um jogo, e cada jogador a mais custa só o desenho da visão dele.
 
 ## Etapas (cada uma testada no jogo antes da próxima)
 
-| Etapa | Pronto quando |
+| Etapa | Pronto quando | Situação |
+|---|---|---|
+| 1. Segundo personagem | P2 nasce na partida, aparece no placar e anda/pula/mira com o controle dele. | Pronta |
+| 2. Tela dividida | Duas câmeras lado a lado na mesma janela, cada uma seguindo o seu personagem. | Pronta: cada um vê o corpo dos outros |
+| 3. HUD e ações | Mira, HUD, usar, atirar, empurrar, emotes de cada um. | HUD pronto (rodada, título, placar, "PASSOU/FALHOU" e posição de cada um). Ações: falta testar uma a uma |
+| 4. Partida inteira | Troca de fase, microgames, entrar e sair no meio, quem cai e volta. | Troca de fase, 25 rodadas, fase de chefe, entrar no meio e cair/voltar: ok. Sair de vez (remover no Hub): falta testar |
+| 5. Até 10 | Grade automática, desempenho medido, qualidade de vídeo ajustada. | Pronta (números abaixo) |
+| 6. Celular | A visão de quem está no celular vai para o celular e sai da TV. | Pronta, inclusive para quem hospeda |
+
+## Situação em 31/10/2026
+
+Medido no PC de referência (Ryzen 7 5700U, vídeo integrado, 32 GB, janela 1920x1080), com o preset VeryLow
+enquanto a tela está dividida (`QualidadeComVariosJogadores`; com um jogador só voltam as configurações da
+pessoa):
+
+| Jogadores na TV | Quadros por segundo |
 |---|---|
-| 1. Segundo personagem | P2 nasce na partida, aparece no placar e anda/pula/mira com o controle dele. |
-| 2. Tela dividida | Duas câmeras lado a lado na mesma janela, cada uma seguindo o seu personagem. |
-| 3. HUD e ações | Mira, HUD, usar, atirar, empurrar, emotes de cada um. |
-| 4. Partida inteira | Troca de fase, microgames, entrar e sair no meio, quem cai e volta. |
-| 5. Até 10 | Grade automática, desempenho medido, qualidade de vídeo ajustada. |
-| 6. Celular | A visão de quem está no celular vai para o celular e sai da TV. |
+| 4 | 34 |
+| 6 | 27 |
+| 10 | 19 |
+
+Uma cópia do jogo por jogador parava em 4 (21 a 24 por janela, 6% de memória livre).
+
+O que precisou de ajuste (cada um tem o porquê no código):
+
+- **Teleporte sem fim:** mensagens para o personagem de um extra (ClientRpc, TargetRpc) rodam no contexto
+  dele; antes, o jogo achava que o personagem era de outro PC e reenviava o teleporte para sempre.
+- **Contexto preso:** o Harmony fecha os patches de um método na mesma ordem em que abriu; entrar no contexto
+  de quem já está nele não faz nada, e assim ninguém fica preso como "jogador local".
+- **Placar com "?":** o jogo pede à Steam os dados de cada conta antes de mostrar o avatar; um SteamID de
+  jogador extra não é conta, então o mod responde na hora.
+- **HUD da partida:** uma cópia por jogador extra, só com as telas do HUD (sem pausa, PDA nem a espera pelos
+  jogadores, que começaria rodadas de novo), criada assim que a fase carrega.
+- **Desconhecidos na sala:** sem o Party Pass a sala é pública (é a regra do jogo; sala privada é o recurso
+  pago). O mod não bloqueia ninguém; quem hospeda pode expulsar pelo menu do jogo.
 
 ## Riscos
 
 - Código do jogo que olha "o jogador local" fora do código dos personagens (HUD geral, alguns microgames):
   vale só para quem hospeda. Cada caso achado vira um ajuste.
 - Microgames com câmera própria (sapo, kart): precisam da troca de contexto também no "pawn".
-- Desempenho: cada câmera é a cena desenhada de novo; no vídeo integrado, a qualidade das câmeras extras cai.
+- Desempenho: cada câmera é a cena desenhada de novo; no vídeo integrado, com 10 jogadores, ~19 quadros por
+  segundo no preset mais leve.
+- O que o jogo mostra fora do HUD da partida (avisos, votação, combo) segue um só, na parte de quem hospeda.
