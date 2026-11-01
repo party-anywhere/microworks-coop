@@ -21,8 +21,9 @@ Com um agente de IA (Claude e outros), é só pedir *"instale este mod no Party 
   (rodada, placar, posição, "PASSOU/FALHOU"), e a tela se reorganiza quando alguém entra, sai ou passa a
   jogar pelo celular.
 - **Celular:** com "Tela do jogo no celular" ligada, a parte daquela pessoa vai para o celular dela e sai da TV.
-- **Quem é quem:** no canto de cada parte da tela, a etiqueta do dono ("P2 · Ana", na cor da vaga); sobre a
-  cabeça de cada jogador do sofá, "P3" na cor dele; no placar, a cor da vaga com "P1".."P10".
+- **Quem é quem:** no canto de cada parte da tela, a etiqueta do dono ("P2", na cor da vaga); sobre a
+  cabeça de cada jogador do sofá, "P3" na cor dele; cada boneco com a cor da vaga; no placar, a cor da vaga com
+  "P1".."P10".
 - **Todos jogam tudo, como no online:** cada jogador do sofá é um jogador de verdade da partida, com a arma, a
   bola, o sapo e o kart dele, e os pontos dele.
 - **Desafios de responder** (a conta, digitar a palavra ou a cor, trivia, repetir a sequência, empilhar): cada um

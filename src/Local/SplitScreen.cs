@@ -14,7 +14,10 @@ namespace MicroWorksCoop.Local
     ///
     /// Em primeira pessoa o jogo esconde o corpo do jogador local, e aqui todos são locais. Cada corpo vai para
     /// uma camada só dele (das que o jogo não usa) e fica ligado; a câmera de cada um deixa de desenhar só a
-    /// camada do próprio corpo. Não depende da ordem em que o HDRP prepara e desenha as câmeras.
+    /// camada do próprio corpo. O que é de primeira pessoa (os braços, a arma presa à câmera) vai para outra
+    /// camada dele, que só a câmera dele desenha; e o modelo da arma na mão, que o jogo esconde do jogador
+    /// local, aparece para os outros (a lata, a bola). Não depende da ordem em que o HDRP prepara e desenha as
+    /// câmeras.
     /// </summary>
     class SplitScreen : MonoBehaviour
     {
@@ -32,10 +35,12 @@ namespace MicroWorksCoop.Local
         readonly Dictionary<int, AudioListener[]> listeners = new Dictionary<int, AudioListener[]>();
         readonly Dictionary<int, RectTransform[]> huds = new Dictionary<int, RectTransform[]>();      // HUD do jogador
         readonly Dictionary<int, RectTransform[]> matchHuds = new Dictionary<int, RectTransform[]>(); // HUD da partida
-        readonly Dictionary<int, Renderer[]> bodies = new Dictionary<int, Renderer[]>();
+        readonly Dictionary<int, (Renderer renderer, bool view)[]> bodies = new Dictionary<int, (Renderer, bool)[]>();
         readonly Dictionary<int, int> originalMask = new Dictionary<int, int>(); // câmera → máscara do jogo
-        int[] bodyLayers;  // uma camada livre por posição na grade
-        int allBodyBits;
+        readonly Dictionary<Renderer, int> originalLayer = new Dictionary<Renderer, int>(); // peça → camada do jogo
+        int[] bodyLayers;  // uma camada livre por posição na grade: o corpo (os outros veem)
+        int[] viewLayers;  // e outra: a primeira pessoa (só ele vê); vazio se o jogo não deixar camadas livres
+        int allBodyBits, allViewBits;
         float nextRescan;
         int lastCount;
         bool split;
@@ -46,6 +51,12 @@ namespace MicroWorksCoop.Local
         public static Rect HostPart { get; private set; } = new Rect(0f, 0f, 1f, 1f);
         /// <summary>Quem hospeda está jogando pela tela do celular (fora da TV).</summary>
         public static bool HostOnPhone { get; private set; }
+
+        void Awake()
+        {
+            // uma arma foi para a mão de alguém (a lata, a bola): as peças dela entram nas camadas já
+            GlobalEvent<WeaponAttachedEvent>.AddListener(_ => bodies.Clear());
+        }
 
         void LateUpdate()
         {
@@ -138,14 +149,16 @@ namespace MicroWorksCoop.Local
                 if (!split) continue;
                 int camId = cam.GetInstanceID();
                 if (!originalMask.ContainsKey(camId)) originalMask[camId] = cam.cullingMask;
-                int mask = (originalMask[camId] | allBodyBits) & ~(1 << bodyLayers[index]); // os outros sim, o próprio corpo não
+                // os corpos dos outros sim, o próprio não; a primeira pessoa só a própria
+                int mask = (originalMask[camId] | allBodyBits) & ~(1 << bodyLayers[index]) & ~allViewBits;
+                if (viewLayers.Length > index) mask |= 1 << viewLayers[index];
                 if (cam.cullingMask != mask) cam.cullingMask = mask;
             }
             if (!listeners.TryGetValue(id, out AudioListener[] ears)) listeners[id] = ears = pc.GetComponentsInChildren<AudioListener>(true);
             foreach (AudioListener ear in ears)
                 if (ear != null && ear.enabled != listen) ear.enabled = listen;
 
-            if (split) ShowBody(pc, id, bodyLayers[index]);
+            if (split) ShowBody(pc, id, index);
 
             // os HUDs ficam por cima de tudo, como no jogo, mas dentro da parte do jogador: o conteúdo de cada tela
             // do HUD vai para uma moldura no lugar da parte dele.
@@ -221,21 +234,47 @@ namespace MicroWorksCoop.Local
             if (frame.localScale.x != scale) frame.localScale = new Vector3(scale, scale, 1f);
         }
 
-        // o corpo do jogador na camada dele, ligado (o jogo o desliga em primeira pessoa por ser "local")
-        void ShowBody(PlayerController pc, int id, int layer)
+        // o corpo do jogador na camada dele, ligado (o jogo o desliga em primeira pessoa por ser "local"); a primeira
+        // pessoa na camada que só ele vê; a arma na mão ligada para os outros
+        void ShowBody(PlayerController pc, int id, int index)
         {
             // morto, controlando outra coisa (sapo, kart) ou espectador: o jogo cuida do corpo
             if (!pc.Alive || pc.IsPossessingPawn || pc.IsSpectating) return;
-            if (!bodies.TryGetValue(id, out Renderer[] parts))
+            if (!bodies.TryGetValue(id, out var parts))
             {
-                var list = new List<Renderer>();
+                Transform view = pc.lookRoot != null ? pc.lookRoot.transform : null;
+                var list = new List<(Renderer, bool)>();
                 foreach (Renderer r in pc.GetComponentsInChildren<Renderer>(true))
-                    if (r != null && r.GetComponent<Collider>() == null && r.GetComponentInParent<Canvas>() == null) list.Add(r);
+                    if (r != null && r.GetComponent<Collider>() == null && r.GetComponentInParent<Canvas>() == null)
+                        list.Add((r, view != null && r.transform.IsChildOf(view)));
                 bodies[id] = parts = list.ToArray();
             }
-            foreach (Renderer r in parts)
-                if (r != null && r.gameObject.layer != layer) r.gameObject.layer = layer;
+            int body = bodyLayers[index], own = viewLayers.Length > index ? viewLayers[index] : -1;
+            foreach ((Renderer r, bool isView) in parts)
+            {
+                if (r == null) continue;
+                // sem camada de primeira pessoa (o jogo não deixou camadas livres), ela fica como o jogo fez
+                int layer = isView ? own : body;
+                if (layer < 0 || r.gameObject.layer == layer) continue;
+                if (!originalLayer.ContainsKey(r)) originalLayer[r] = r.gameObject.layer;
+                r.gameObject.layer = layer;
+            }
             if (!pc.playerMesh.enabled) pc.ToggleModelVisibility(true);
+            ShowHeldWeapon(pc);
+        }
+
+        // o modelo da arma na mão (não o da câmera): o jogo esconde do jogador local, os outros precisam ver
+        static void ShowHeldWeapon(PlayerController pc)
+        {
+            WeaponBase weapon = pc.Weapon;
+            if (weapon == null || weapon.Attachments == null) return;
+            foreach (WeaponModelAttachment a in weapon.Attachments)
+            {
+                if (a == null || a.Attachment == WeaponAttachment.FirstPersonLookRoot) continue;
+                if (a.Mesh != null && !a.Mesh.enabled) a.Mesh.enabled = true;
+                if (a.meshChildren == null) continue;
+                foreach (Renderer r in a.meshChildren) if (r != null && !r.enabled) r.enabled = true;
+            }
         }
 
         // as câmeras que não são de jogador (a do sapo, as de introdução, a do retrato no HUD) continuam vendo os
@@ -246,6 +285,7 @@ namespace MicroWorksCoop.Local
             {
                 if (cam == null || cam.GetComponentInParent<PlayerController>() != null && cam.targetTexture == null) continue;
                 if ((cam.cullingMask & 1) != 0 && (cam.cullingMask & allBodyBits) != allBodyBits) cam.cullingMask |= allBodyBits;
+                if ((cam.cullingMask & allViewBits) != 0) cam.cullingMask &= ~allViewBits; // primeira pessoa: só a do dono
             }
         }
 
@@ -255,22 +295,30 @@ namespace MicroWorksCoop.Local
                 foreach (Camera cam in cams)
                     if (cam != null && originalMask.TryGetValue(cam.GetInstanceID(), out int mask)) cam.cullingMask = mask;
             originalMask.Clear();
+            // cada peça de volta à camada em que o jogo a pôs (sem isso, os braços de quem hospeda sumiriam)
+            foreach (KeyValuePair<Renderer, int> kv in originalLayer)
+                if (kv.Key != null) kv.Key.gameObject.layer = kv.Value;
+            originalLayer.Clear();
             // de volta ao que o jogo espera de um jogador local sozinho
             bool third = thirdPerson != null && thirdPerson.Value;
             foreach (PlayerController pc in order)
                 if (pc != null && pc.Alive && pc.playerMesh.enabled != third) pc.ToggleModelVisibility(third);
         }
 
-        // as camadas livres (sem nome no jogo), uma por posição na grade; sem camadas suficientes, sem divisão
+        // as camadas livres (sem nome no jogo): uma por posição na grade para os corpos e, se sobrar, outra para a
+        // primeira pessoa de cada um; sem camadas para os corpos, sem divisão
         bool Layers()
         {
             if (bodyLayers != null) return bodyLayers.Length >= order.Count;
             var free = new List<int>();
-            for (int l = 31; l >= 8 && free.Count < Client.MaxSeats; l--)
+            for (int l = 31; l >= 8 && free.Count < 2 * Client.MaxSeats; l--)
                 if (string.IsNullOrEmpty(LayerMask.LayerToName(l))) free.Add(l);
-            bodyLayers = free.ToArray();
+            int bodiesCount = Mathf.Min(free.Count, Client.MaxSeats);
+            bodyLayers = free.GetRange(0, bodiesCount).ToArray();
+            viewLayers = free.GetRange(bodiesCount, free.Count - bodiesCount).ToArray();
             foreach (int l in bodyLayers) allBodyBits |= 1 << l;
-            Plugin.Log.LogInfo($"Tela dividida: camadas dos corpos {string.Join(",", bodyLayers)}");
+            foreach (int l in viewLayers) allViewBits |= 1 << l;
+            Plugin.Log.LogInfo($"Tela dividida: camadas dos corpos {string.Join(",", bodyLayers)}; da primeira pessoa {string.Join(",", viewLayers)}");
             return bodyLayers.Length >= order.Count;
         }
 

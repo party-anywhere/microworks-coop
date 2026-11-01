@@ -280,18 +280,40 @@ namespace MicroWorksCoop.Local
                 if (top.localScale.x != fit) top.localScale = new Vector3(fit, fit, 1f);
             }
 
-            // a peça de primeiro nível da tela (Canvas raiz) onde o PDA está; já dentro de uma parte: nada a fazer
+            const string PdaFrame = "PartyAnywhere.PdaPart";
+
+            // a peça de primeiro nível da tela (Canvas raiz) onde o PDA está; já dentro de uma parte: nada a fazer.
+            // O PDA do MicroWorks é a própria tela raiz: o conteúdo dela vai para uma moldura, que é o que se move
             static RectTransform TopOf(Transform t)
             {
                 Canvas[] canvases = t.GetComponentsInParent<Canvas>(true);
                 if (canvases.Length == 0) return null;
                 Transform root = canvases[canvases.Length - 1].transform;
+                if (t == root) return Frame(root);
                 for (Transform x = t; x != null && x.parent != null; x = x.parent)
                 {
-                    if (x.name == "PartyAnywhere.Part") return null;
+                    if (x.name == "PartyAnywhere.Part" || x.name == PdaFrame) return x.name == PdaFrame ? (RectTransform)x : null;
                     if (x.parent == root) return x as RectTransform;
                 }
                 return null;
+            }
+
+            static RectTransform Frame(Transform root)
+            {
+                Transform existing = root.Find(PdaFrame);
+                if (existing != null) return (RectTransform)existing;
+                var frame = (RectTransform)new GameObject(PdaFrame, typeof(RectTransform)).transform;
+                frame.gameObject.layer = root.gameObject.layer;
+                frame.SetParent(root, false);
+                frame.anchorMin = Vector2.zero;
+                frame.anchorMax = Vector2.one;
+                frame.sizeDelta = Vector2.zero;
+                // na mesma ordem (é a ordem de desenho)
+                var children = new List<Transform>();
+                foreach (Transform child in root) if (child != frame) children.Add(child);
+                foreach (Transform child in children) child.SetParent(frame, false);
+                Plugin.Log.LogInfo($"PDA de quem hospeda: na parte dele da tela ({children.Count} peças)");
+                return frame;
             }
 
             static void Save(RectTransform top)
@@ -364,6 +386,10 @@ namespace MicroWorksCoop.Local
                 Root = HudUi.Rect($"PartyAnywhere.Answer.P{seat + 1}", parent);
                 Root.sizeDelta = new Vector2(PanelW, PanelH);
                 Root.SetAsLastSibling();
+                // por cima de tudo o que o jogo desenha no HUD (as dicas da rodada ficavam sobre a pergunta)
+                var layer = Root.gameObject.AddComponent<Canvas>();
+                layer.overrideSorting = true;
+                layer.sortingOrder = 30000;
                 HudUi.Box(Root, new Color(0.04f, 0.05f, 0.07f, 0.9f));
                 RectTransform bar = HudUi.Rect("Bar", Root);
                 bar.anchoredPosition = new Vector2(0f, PanelH / 2f - 4f);

@@ -11,7 +11,7 @@ namespace MicroWorksCoop.Local
 {
     /// <summary>
     /// Quem é quem, com mais de um jogador do sofá na partida:
-    /// - no canto de cada parte da tela, a etiqueta do dono dela ("P2 · Ana", na cor da vaga);
+    /// - no canto de cada parte da tela, a etiqueta do dono dela ("P2", na cor da vaga);
     /// - sobre a cabeça de cada jogador do sofá, "P3" na cor dele, na tela de quem está vendo.
     /// Tudo no HUD de cada jogador (dentro da parte dele, ou na imagem do celular). Uma placa no mundo do jogo não
     /// serviria: o HDRP prepara todas as câmeras antes de desenhar, então ela não vira para cada uma.
@@ -33,7 +33,6 @@ namespace MicroWorksCoop.Local
 
         readonly List<(int seat, PlayerController pc)> players = new List<(int, PlayerController)>(Client.MaxSeats);
         readonly View[] views = new View[Client.MaxSeats];
-        readonly string[] shownName = new string[Client.MaxSeats];
 
         void LateUpdate()
         {
@@ -80,10 +79,9 @@ namespace MicroWorksCoop.Local
             v.Corner = HudUi.Rect("Corner", v.Root);
             v.Corner.anchorMin = v.Corner.anchorMax = v.Corner.pivot = new Vector2(0f, 1f);
             v.Corner.anchoredPosition = new Vector2(24f, -24f);
-            v.Corner.sizeDelta = new Vector2(300f, 52f);
+            v.Corner.sizeDelta = new Vector2(84f, 52f);
             v.CornerBox = HudUi.Box(v.Corner, Color.gray);
-            v.CornerText = HudUi.Label(v.Corner, "", Vector2.zero, new Vector2(284f, 48f), 32f, Color.white);
-            v.CornerText.alignment = TextAlignmentOptions.MidlineLeft;
+            v.CornerText = HudUi.Label(v.Corner, $"<b>P{seat + 1}</b>", Vector2.zero, new Vector2(76f, 48f), 34f, Color.white);
             return v;
         }
 
@@ -94,12 +92,6 @@ namespace MicroWorksCoop.Local
             {
                 v.CornerBox.color = color;
                 v.CornerText.color = HudUi.InkOn(color);
-            }
-            string name = Identity.SeatName(seat);
-            if (shownName[seat] != name || v.CornerText.text.Length == 0)
-            {
-                shownName[seat] = name;
-                v.CornerText.text = $"<b>P{seat + 1}</b>  {name}";
             }
         }
 

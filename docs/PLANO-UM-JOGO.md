@@ -87,8 +87,17 @@ Pela internet, cada pessoa tem no jogo dela a autoridade sobre o que é dela e u
   dele, no direcional e no A/B; a resposta vai pelo mesmo evento do PDA (`MathAnswer`, `Answer`, `TriviaAnswer`,
   `SequenceAnswer`, `Stacked`), no contexto dele: conta para ele no placar. Digitar uma palavra num controle
   levaria o desafio inteiro: são quatro palavras para escolher, a certa e três da lista do jogo.
-- **Quem é quem (SeatMarkers):** a etiqueta "P2 · nome" no canto de cada parte e "P3" sobre a cabeça de cada
-  jogador do sofá, na cor da vaga, no HUD de quem vê.
+- **Quem é quem (SeatMarkers, SeatColors):** a etiqueta "P2" no canto de cada parte e "P3" sobre a cabeça de
+  cada jogador do sofá, no HUD de quem vê; e cada boneco com a cor da vaga (corpo, mochila, propulsores), só na
+  partida, sem mudar o Personalizar da conta.
+- **Primeira pessoa e arma na mão (SplitScreen):** os braços e a arma presa à câmera numa camada que só a câmera
+  do dono desenha; o modelo da arma na mão (a lata, a bola) ligado para os outros verem.
+- **Animação (SeatAnimation):** o gatilho do empurrar e as camadas de animação de um extra voltavam pela rede e
+  tocavam de novo; a cópia que volta é ignorada.
+- **O PDA de quem hospeda** é uma tela própria: o conteúdo vai para uma moldura na parte dele (e some quando ele
+  responde no painel).
+- **A lata pelo celular:** arrastar o dedo na metade direita (a câmera pelo celular) agita a lata. Sacudir o
+  próprio celular precisa do sensor de movimento, que o navegador só libera em HTTPS: fica para o app nativo.
 
 Para conferir no jogo, com 2 ou mais jogadores: queimada (P2 pega e arremessa a bola), sapo e kart, cada desafio
 de responder (P2 responde certo e ganha os pontos dele; errado, perde), e o placar no fim da partida.
