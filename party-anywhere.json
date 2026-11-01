@@ -3,7 +3,7 @@
   "manifestVersion": 1,
   "id": "com.joaocaioo.microworks-coop",
   "name": "MicroWorks Co-op Local",
-  "tagline": "Até 10 pessoas no mesmo PC, cada uma com a sua tela no MicroWorks.",
+  "tagline": "Até 10 pessoas no mesmo PC e no mesmo jogo, cada uma na sua parte da tela ou no celular.",
   "description": "README.md",
   "authors": [
     "joaocaioo"
@@ -102,16 +102,8 @@
   },
   "launch": {
     "exe": "MicroWorks.exe",
-    "args": [
-      "-screen-fullscreen",
-      "0",
-      "-popupwindow",
-      "-screen-width",
-      "{width}",
-      "-screen-height",
-      "{height}"
-    ],
+    "args": [],
     "workingDir": ".",
-    "copies": "perPlayer"
+    "copies": "one"
   }
 }
