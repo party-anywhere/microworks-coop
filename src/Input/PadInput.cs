@@ -12,8 +12,8 @@ namespace MicroWorksCoop.Input
     static class PadInput
     {
         // bits virtuais além dos botões do pad: gatilhos e direções do stick esquerdo como botões
-        const uint RT = 1u << 16, LT = 1u << 17;
-        const uint StickUp = 1u << 18, StickDown = 1u << 19, StickLeft = 1u << 20, StickRight = 1u << 21;
+        public const uint RT = 1u << 16, LT = 1u << 17;
+        public const uint StickUp = 1u << 18, StickDown = 1u << 19, StickLeft = 1u << 20, StickRight = 1u << 21;
         const float TriggerOn = 0.5f, StickOn = 0.5f;
 
         // velocidade da mira com o stick no máximo, em graus por segundo (a sensibilidade do mouse do jogo não muda isso)
@@ -29,6 +29,13 @@ namespace MicroWorksCoop.Input
         static readonly uint[] held = new uint[Client.MaxSeats];
         static readonly uint[] pressed = new uint[Client.MaxSeats];
         static readonly uint[] released = new uint[Client.MaxSeats];
+        // um painel do mod (responder a conta, escolher a resposta) está com o controle da vaga: o jogo não o vê
+        static readonly bool[] captured = new bool[Client.MaxSeats];
+        static readonly uint[] panelHeld = new uint[Client.MaxSeats];
+        static readonly uint[] panelPressed = new uint[Client.MaxSeats];
+        // a câmera por arrastar o dedo no celular (graus desde o quadro anterior), somada ao analógico direito
+        static readonly float[] lookX = new float[Client.MaxSeats];
+        static readonly float[] lookY = new float[Client.MaxSeats];
         static bool hostRouting;
         static bool menu;
         static Vector2 cursor;
@@ -66,6 +73,14 @@ namespace MicroWorksCoop.Input
                 if (pad.Ly < -StickOn) h |= StickDown;
                 if (pad.Lx < -StickOn) h |= StickLeft;
                 if (pad.Lx > StickOn) h |= StickRight;
+                uint down = h & ~panelHeld[s];
+                panelPressed[s] = down;
+                panelHeld[s] = h;
+                // com um painel aberto, o personagem fica parado (como no PDA do jogo) e o painel lê os botões
+                // o celular manda o quanto a pessoa arrastou o dedo na metade direita; pedir também avisa o Hub que o
+                // jogo lê a câmera assim (o celular mostra a área de câmera)
+                if (hub == null || !Plugin.Active || !hub.TakeLook(s, out lookX[s], out lookY[s])) lookX[s] = lookY[s] = 0f;
+                if (captured[s]) { pads[s] = default; h = 0; lookX[s] = lookY[s] = 0f; }
                 pressed[s] = h & ~held[s];
                 released[s] = ~h & held[s];
                 held[s] = h;
@@ -105,8 +120,8 @@ namespace MicroWorksCoop.Input
             {
                 case "Horizontal": value = pad.Lx; return true;
                 case "Vertical": value = pad.Ly; return true;
-                case "Mouse X": value = Look(pad.Rx, LookYawDegPerSec); return true;
-                case "Mouse Y": value = Look(pad.Ry, LookPitchDegPerSec); return true;
+                case "Mouse X": value = Look(pad.Rx, LookYawDegPerSec) + Degrees(lookX[Seat]); return true;
+                case "Mouse Y": value = Look(pad.Ry, LookPitchDegPerSec) + Degrees(lookY[Seat]); return true;
                 case "Mouse ScrollWheel":
                     value = Pressed((uint)Buttons.Up) ? ZoomStep : Pressed((uint)Buttons.Down) ? -ZoomStep : 0f;
                     return true;
@@ -196,6 +211,13 @@ namespace MicroWorksCoop.Input
 
         public static bool AnyKey(bool down) => down ? pressed[Seat] != 0 : held[Seat] != 0;
 
+        /// <summary>Um painel do mod passa a ler o controle da vaga (o jogo deixa de ver) ou devolve.</summary>
+        public static void Capture(int seat, bool on) => captured[seat] = on;
+
+        /// <summary>Os botões da vaga para um painel do mod: os segurados e os que desceram neste quadro.</summary>
+        public static uint PanelHeld(int seat) { Tick(); return panelHeld[seat]; }
+        public static uint PanelPressed(int seat) { Tick(); return panelPressed[seat]; }
+
         /// <summary>A vaga tem alguém conectado agora (controle ou celular).</summary>
         public static bool SeatActive(int seat) { Tick(); return active[seat]; }
 
@@ -205,6 +227,13 @@ namespace MicroWorksCoop.Input
         {
             float sens = mouseSensitivity != null && mouseSensitivity.Value > 0.01f ? mouseSensitivity.Value : 1f;
             return Curve(stick) * degPerSec * Time.unscaledDeltaTime / sens;
+        }
+
+        // graus girados → o eixo do mouse do jogo (que multiplica pela sensibilidade dele)
+        static float Degrees(float deg)
+        {
+            float sens = mouseSensitivity != null && mouseSensitivity.Value > 0.01f ? mouseSensitivity.Value : 1f;
+            return deg / sens;
         }
 
         // curva quadrática: precisão perto do centro

@@ -31,16 +31,28 @@ Use a skill `.claude/skills/party-anywhere-game`. A documentação vem na `pa`, 
 `pa docs sdk` antes de mexer em controles (o mod lê os jogadores só pelo SDK; `sdk/party_anywhere.h` é o
 contrato) e `pa validate` antes de publicar.
 
-**Jogo com multiplayer online?** Leia `pa docs coop` antes de propor o caminho: o mod reaproveita o
-multiplayer do jogo (nada de jogabilidade perdida) e, para passar do limite de jogadores, segue o método do guia.
+**Antes de propor o caminho técnico, leia `pa docs coop`.** O caminho é um só: **uma cópia do jogo, com
+todos os jogadores dentro dela e uma visão por jogador** (o motor desenha a cena uma vez para cada um, cada
+visão no seu pedaço da tela). **Não abra várias cópias do jogo** para fazer tela dividida: multiplica memória,
+processador e som, depende de LAN e de o jogo aceitar rodar várias vezes, e o Party Anywhere não dá suporte a
+isso. Jogo com multiplayer online: reaproveite o código de "vários jogadores" do jogo dentro da mesma cópia
+(nada de jogabilidade perdida). Para passar do limite de jogadores, siga o método do guia.
 
 **Seja honesto sobre o tamanho do trabalho.** Ler os controles pelo SDK é a parte pequena. Criar os jogadores
 extras e dividir a tela num jogo fechado é engenharia reversa, feita em passos pequenos e testados com a
 pessoa (a ordem está no guia). Não prometa "pronto em um pedido".
 
-**Padrão de todo mod: a tela do jogo no celular.** Para cada jogador com `pa_view_wanted` verdadeiro, o mod
-não desenha a parte dele na TV e entrega a visão dele com `pa_submit_view` (ver "Tela do jogo no celular" no
-SDK). Implemente junto com a tela dividida, não depois.
+**O que todo mod faz (não espere a pessoa pedir):** os padrões estão em `pa docs coop`, seção 3: tela
+dividida sem cantos vazios, HUD por jogador, quem é quem com a cor e o número da vaga, `controls` na ficha com o
+meio livre, câmera pelo celular (`pa_take_look`) e a **tela do jogo no celular** para quem ligar no menu do
+celular (`pa_view_wanted`, no tamanho de `pa_view_size`; vem desligada, a pessoa escolhe). Unity: comece pelo
+`sdk/csharp/` e pela seção 4 do guia.
+
+**Teste sozinho:** com o Hub aberto, `pa phone-sim --players 4 --screen --save-view prints` coloca celulares de
+mentira na partida (veja `pa docs coop`, seção 9). Meça desempenho com o Hub release.
+
+**Versão nova de um mod de jogo existente:** `scripts\release.ps1` (o build precisa do jogo instalado, por isso
+sai do PC e não do GitHub Actions); `pa add .` leva para o Hub da pessoa sem publicar.
 
 Publicar é opcional: um release no GitHub (tag igual à `version` da ficha) deixa qualquer pessoa jogar só com
 o link.

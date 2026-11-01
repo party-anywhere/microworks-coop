@@ -7,9 +7,10 @@ using UnityEngine;
 namespace MicroWorksCoop.Net
 {
     /// <summary>
-    /// Todas as cópias rodam na mesma conta Steam, mas o jogo guarda placar e reconexão pelo SteamID. Cada cópia
-    /// extra se apresenta com o SteamID real e outro campo "instância" (P2 → 0x11, P3 → 0x12...). Não existe conta
-    /// assim, então nunca colide com um jogador de verdade; o nome mostrado é o da vaga no Party Anywhere.
+    /// Todos os jogadores do sofá estão na conta Steam de quem hospeda, mas o jogo guarda placar e reconexão pelo
+    /// SteamID. Cada jogador extra se apresenta com o SteamID real e outro campo "instância" (P2 → 0x11, P3 →
+    /// 0x12...). Não existe conta assim, então nunca colide com um jogador de verdade; o nome mostrado é o da vaga
+    /// no Party Anywhere.
     /// </summary>
     static class Identity
     {
@@ -23,7 +24,7 @@ namespace MicroWorksCoop.Net
 
         public static ulong Fake(ulong real, int seat) => WithInstance(real, FirstFakeInstance + (uint)seat);
 
-        /// <summary>A vaga de um SteamID de cópia extra; false para um SteamID de verdade.</summary>
+        /// <summary>A vaga de um SteamID de jogador extra; false para um SteamID de verdade.</summary>
         public static bool TrySeat(ulong id, out int seat)
         {
             uint instance = (uint)((id & InstanceMask) >> InstanceShift);
@@ -32,8 +33,8 @@ namespace MicroWorksCoop.Net
         }
 
         /// <summary>
-        /// Quem joga neste PC: as cópias (SteamID de cópia) e a conta da cópia que hospeda, enquanto o co-op local
-        /// está valendo e a vaga tem alguém. Gente que entrou pela internet fica de fora.
+        /// Quem joga neste PC: os extras (SteamID de extra) e a conta de quem hospeda, enquanto o co-op local está
+        /// valendo e a vaga tem alguém. Gente que entrou pela internet fica de fora.
         /// </summary>
         public static bool TryLocalSeat(ulong id, out int seat)
         {
@@ -42,7 +43,7 @@ namespace MicroWorksCoop.Net
             if (!TrySeat(id, out seat))
             {
                 if (id != WithInstance(SteamClient.SteamId.Value, RealInstance)) { seat = -1; return false; }
-                seat = Plugin.HostSeat; // a conta de verdade é a da cópia que hospeda
+                seat = Plugin.Seat; // a conta de verdade é a de quem hospeda
             }
             return hub.GetSeatState(seat) != SeatState.Empty;
         }
@@ -70,9 +71,8 @@ namespace MicroWorksCoop.Net
         static void Postfix(ref SteamId __result)
         {
             if (__result.Value == 0) return;
-            // uma cópia por jogador: a cópia extra é sempre a vaga dela; um jogo só: quem estiver em contexto
-            if (!Plugin.IsLeader) __result = Identity.Fake(__result.Value, Plugin.Seat);
-            else if (Local.SeatContext.IsExtra) __result = Identity.Fake(__result.Value, Local.SeatContext.Seat);
+            // o código de um jogador extra (em contexto) se apresenta com o SteamID dele
+            if (Local.SeatContext.IsExtra) __result = Identity.Fake(__result.Value, Local.SeatContext.Seat);
         }
     }
 

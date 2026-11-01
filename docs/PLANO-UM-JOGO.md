@@ -40,7 +40,7 @@ a de um jogo, e cada jogador a mais custa só o desenho da visão dele.
 |---|---|---|
 | 1. Segundo personagem | P2 nasce na partida, aparece no placar e anda/pula/mira com o controle dele. | Pronta |
 | 2. Tela dividida | Duas câmeras lado a lado na mesma janela, cada uma seguindo o seu personagem. | Pronta: cada um vê o corpo dos outros |
-| 3. HUD e ações | Mira, HUD, usar, atirar, empurrar, emotes de cada um. | HUD pronto (rodada, título, placar, "PASSOU/FALHOU" e posição de cada um). Ações: falta testar uma a uma |
+| 3. HUD e ações | Mira, HUD, usar, atirar, empurrar, emotes de cada um. | HUD pronto (rodada, título, placar, "PASSOU/FALHOU" e posição de cada um). Armas, bola, sapo e kart com autoridade do extra (SeatAuthority) e desafios de responder com painel por jogador (SeatPads): falta testar no jogo |
 | 4. Partida inteira | Troca de fase, microgames, entrar e sair no meio, quem cai e volta. | Troca de fase, 25 rodadas, fase de chefe, entrar no meio e cair/voltar: ok. Sair de vez (remover no Hub): falta testar |
 | 5. Até 10 | Grade automática, desempenho medido, qualidade de vídeo ajustada. | Pronta (números abaixo) |
 | 6. Celular | A visão de quem está no celular vai para o celular e sai da TV. | Pronta, inclusive para quem hospeda |
@@ -72,11 +72,31 @@ O que precisou de ajuste (cada um tem o porquê no código):
 - **Desconhecidos na sala:** sem o Party Pass a sala é pública (é a regra do jogo; sala privada é o recurso
   pago). O mod não bloqueia ninguém; quem hospeda pode expulsar pelo menu do jogo.
 
+## Paridade com o online (01/11/2026)
+
+Pela internet, cada pessoa tem no jogo dela a autoridade sobre o que é dela e um PDA próprio. Aqui faltavam os dois:
+
+- **Autoridade (SeatAuthority):** a arma na mão (a bola da queimada, o caranguejo, a bandeira), o sapo, o kart e
+  os projéteis de um extra pertencem à conexão de mentira dele, e o Mirror só dava autoridade, no jogo de quem
+  hospeda, ao que é da conexão de quem hospeda: a arma do P2 não lia o controle dele nem mandava o arremesso.
+  Agora o que é de um extra ganha autoridade, o aviso de autoridade (OnStartAuthority) roda no contexto dele, e o
+  código desses objetos também (SeatContext acha a vaga pelo dono do objeto na rede).
+- **PDA por jogador (SeatPads):** a conta (TypeTheAnswer e o "Ou não?" da rodada livre), digitar a palavra
+  (TypeTheWord), digitar a cor (TypeTheColor), trivia (SelectTheAnswer), repetir a sequência (RepeatTheSequence) e
+  empilhar (StackIt). Cada jogador do sofá (e quem hospeda, se joga pelo controle) responde num painel na parte
+  dele, no direcional e no A/B; a resposta vai pelo mesmo evento do PDA (`MathAnswer`, `Answer`, `TriviaAnswer`,
+  `SequenceAnswer`, `Stacked`), no contexto dele: conta para ele no placar. Digitar uma palavra num controle
+  levaria o desafio inteiro: são quatro palavras para escolher, a certa e três da lista do jogo.
+- **Quem é quem (SeatMarkers):** a etiqueta "P2 · nome" no canto de cada parte e "P3" sobre a cabeça de cada
+  jogador do sofá, na cor da vaga, no HUD de quem vê.
+
+Para conferir no jogo, com 2 ou mais jogadores: queimada (P2 pega e arremessa a bola), sapo e kart, cada desafio
+de responder (P2 responde certo e ganha os pontos dele; errado, perde), e o placar no fim da partida.
+
 ## Riscos
 
-- Código do jogo que olha "o jogador local" fora do código dos personagens (HUD geral, alguns microgames):
-  vale só para quem hospeda. Cada caso achado vira um ajuste.
-- Microgames com câmera própria (sapo, kart): precisam da troca de contexto também no "pawn".
+- Código do jogo que olha "o jogador local" fora do código dos personagens e do que eles têm (alguns objetos de
+  cena usáveis, projéteis só visuais): vale só para quem hospeda. Cada caso achado vira um ajuste.
 - Desempenho: cada câmera é a cena desenhada de novo; no vídeo integrado, com 10 jogadores, ~19 quadros por
   segundo no preset mais leve.
 - O que o jogo mostra fora do HUD da partida (avisos, votação, combo) segue um só, na parte de quem hospeda.

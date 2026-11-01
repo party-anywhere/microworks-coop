@@ -6,15 +6,15 @@ using UnityEngine;
 
 namespace MicroWorksCoop.Net
 {
-    // Com o Party Pass (é ele que libera sala privada e sem VAC) e gente no lobby do Party Anywhere, "Criar partida"
-    // já abre como sala privada e sem VAC: só as cópias deste PC entram. Sem o Party Pass, o jogo só cria sala
-    // pública (qualquer um pela internet pode entrar junto) e a tela fica como o jogo deixa.
+    // Com o Party Pass (é ele que libera sala privada) e gente no lobby do Party Anywhere, "Criar partida" já abre
+    // como sala privada e sem VAC: só o sofá joga. Sem o Party Pass, o jogo só cria sala pública (qualquer um pela
+    // internet pode entrar junto) e a tela fica como o jogo deixa: o mod não contorna o recurso pago.
     [HarmonyPatch(typeof(CreateServerMenuManager), "OnEnableMenu")]
     static class HostMenuDefaults
     {
         static void Postfix(CreateServerMenuManager __instance)
         {
-            if (!Plugin.IsLeader || Plugin.Hub == null || Plugin.Hub.ActiveSeatCount == 0 || !Dlcs.PartyPass.OwnedByUser) return;
+            if (Plugin.Hub == null || Plugin.Hub.ActiveSeatCount == 0 || !Dlcs.PartyPass.OwnedByUser) return;
             __instance.isPrivateSwitch.isOn = true;
             __instance.VACSwitch.isOn = false;
         }
@@ -54,6 +54,18 @@ namespace MicroWorksCoop.Net
                 MicrogameCoordinator.singleton.HostGame(data.gamemode, lobby.MaxMembers, lobby.MemberCount);
             }
             catch (Exception e) { Plugin.Log.LogError($"-pa-dev-host: {e}"); }
+        }
+    }
+
+    // para desenvolver: "-pa-skip-tutorial" (ou PularTutorial no .cfg) pula o tutorial sem gravar nada
+    [HarmonyPatch(typeof(LaunchManager), "BeginLoading")]
+    static class DevSkipTutorial
+    {
+        const int TutorialDone = 8;
+
+        static void Prefix()
+        {
+            if (Plugin.DevSkipTutorial) CVars.SetValue("gam_iTutorialProgress", TutorialDone, persist: false);
         }
     }
 }

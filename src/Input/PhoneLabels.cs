@@ -6,14 +6,14 @@ namespace MicroWorksCoop.Input
     /// O nome de cada ação nos botões do celular, igual ao mapa do PadInput e ao controle do manifesto
     /// (`controls`). Nomes curtos: no celular o botão é pequeno e precisa ser lido de relance. O Hub guarda por vaga enquanto o
     /// jogo está conectado (vale para quem entra depois e para quem cai e volta), então basta mandar uma vez
-    /// para todas as vagas. Só a cópia 1 manda: é ela que está conectada ao Hub.
+    /// para todas as vagas.
     /// </summary>
     static class PhoneLabels
     {
         static readonly (Buttons button, string label)[] labels =
         {
             (Buttons.LabelStickL, "Andar"),
-            (Buttons.LabelStickR, "Mirar"),
+            (Buttons.LabelStickR, "Olhar"),
             (Buttons.A, "Pular"),
             (Buttons.B, "Agachar"),
             (Buttons.X, "Usar"),

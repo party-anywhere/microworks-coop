@@ -21,7 +21,14 @@ Com um agente de IA (Claude e outros), é só pedir *"instale este mod no Party 
   (rodada, placar, posição, "PASSOU/FALHOU"), e a tela se reorganiza quando alguém entra, sai ou passa a
   jogar pelo celular.
 - **Celular:** com "Tela do jogo no celular" ligada, a parte daquela pessoa vai para o celular dela e sai da TV.
-- **Quem é quem:** no placar, cada jogador do PC aparece com a cor da vaga e "P1".."P10".
+- **Quem é quem:** no canto de cada parte da tela, a etiqueta do dono ("P2 · Ana", na cor da vaga); sobre a
+  cabeça de cada jogador do sofá, "P3" na cor dele; no placar, a cor da vaga com "P1".."P10".
+- **Todos jogam tudo, como no online:** cada jogador do sofá é um jogador de verdade da partida, com a arma, a
+  bola, o sapo e o kart dele, e os pontos dele.
+- **Desafios de responder** (a conta, digitar a palavra ou a cor, trivia, repetir a sequência, empilhar): cada um
+  responde num painel na própria parte da tela (ou no celular), no direcional e no A. Quem joga no teclado usa o
+  PDA do jogo, como sempre.
+- **Câmera pelo celular:** arrastar o dedo na metade direita gira a câmera.
 - **Vídeo:** com mais de um jogador na tela, o mod usa o preset mais leve do jogo só durante a partida; as suas
   configurações não mudam.
 - **Sala:** sem o Party Pass do MicroWorks, a partida é uma sala pública (regra do jogo). O mod não contorna
@@ -32,6 +39,6 @@ Com um agente de IA (Claude e outros), é só pedir *"instale este mod no Party 
 
 - Precisa do MicroWorks instalado (o build usa as DLLs dele, que não vão para o repositório) e do .NET SDK.
 - `powershell -File scripts\dev-install.ps1` compila e copia o mod para o jogo.
-- `powershell -File scriptselease.ps1` compila, confere o manifesto e gera o pacote em `release\`; com
+- `powershell -File scripts\release.ps1` compila, confere o manifesto e gera o pacote em `release\`; com
   `-Publicar`, cria o release `vX.Y.Z` (igual ao `version` do `party-anywhere.json`) no GitHub. O build não roda
   no GitHub Actions porque precisa do jogo.

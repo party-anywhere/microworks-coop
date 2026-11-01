@@ -29,18 +29,30 @@ O servidor MCP `party-anywhere` (`pa mcp`) é opcional e tem as mesmas ferrament
 | Conferir o jogo publicado (como o Hub lê) | `pa inspect <dono/repo>` | `inspect_published_game` |
 | Levar um mod para a Biblioteca (para jogar ou testar) | `pa add <dono/repo ou pasta>` | `add_to_library` |
 
-## Mod de um jogo com multiplayer online
+## O caminho de todo mod: uma cópia do jogo, N jogadores, N visões
 
-Leia `pa docs coop` antes de propor o caminho técnico. Regra de ouro: **não reescreva o multiplayer,
-reaproveite** (os jogadores, a sincronia e as regras são do jogo; o mod muda a entrada, a imagem e quem
-hospeda). Escolha entre um jogo com vários jogadores dentro dele e várias cópias do jogo pela regra de decisão
-do guia, e para passar do limite de jogadores ache todos os lugares do limite antes de mudar um.
+Leia `pa docs coop` antes de propor o caminho técnico. Os jogadores extras são jogadores de verdade do jogo,
+dentro da mesma cópia; o mod troca o contexto ("quem é o jogador" e "a câmera") e pede ao motor uma passada de
+desenho por jogador, cada uma no seu pedaço da tela. **Nunca proponha abrir várias cópias do jogo** (uma por
+jogador): custa N vezes a memória, o processador e o som, e o Party Anywhere não dá suporte. Jogo com
+multiplayer online: **não reescreva o multiplayer, reaproveite** as entidades e regras que o jogo usa para
+vários jogadores, na mesma cópia. Para passar do limite de jogadores, ache todos os lugares do limite antes de
+mudar um.
 
-## Padrão: a tela do jogo no celular
+## Padrões de todo mod (seção 3 do `pa docs coop`)
 
-Todo jogo e mod: para cada vaga com `pa_view_wanted(pa, s)`, não desenhe a parte daquele jogador na TV e
-entregue a visão dele com `pa_submit_view` (BGRA, 640x360 é um bom tamanho). Sem o Hub ou sem celular, nada
-muda. O exemplo `sdk/examples/arena_console.c` mostra o jeito.
+Tela dividida sem cantos vazios (os jogadores divididos por igual entre as linhas, cada linha com a largura
+toda), HUD por jogador, cor e número da vaga no lugar do nome da conta, `controls` na ficha com o meio livre,
+câmera pelo celular com `pa_take_look`, preset de vídeo leve só na memória com mais de um jogador na tela.
+Teste com `pa phone-sim` (seção 9) antes de entregar.
+
+## Tela do jogo no celular (o jogador liga)
+
+Todo jogo e mod oferece; vem desligada e o jogador liga no menu do celular. Para cada vaga com
+`pa_view_wanted(pa, s)`, não desenhe a parte daquele jogador na TV, desenhe a visão dele no tamanho de
+`pa_view_size` (o formato da tela do celular) e entregue com `pa_submit_view` (BGRA; stride negativo para
+imagem de baixo para cima). Sem o Hub ou sem celular, nada muda. Exemplos: `sdk/examples/arena_console.c` (C)
+e `sdk/csharp/Unity/PhoneViews.cs` (Unity).
 
 ## Fluxo
 

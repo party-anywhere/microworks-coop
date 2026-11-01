@@ -13,7 +13,6 @@ namespace MicroWorksCoop.Local
     /// </summary>
     class PhoneViews : MonoBehaviour
     {
-        const int Width = 640, Height = 360; // o padrão do SDK: chega rápido ao celular e custa pouco desenhar
         // uma leitura leva de 1 a 3 quadros para voltar: várias ao mesmo tempo, uma pedida a cada quadro (o Hub
         // manda até 30 por segundo, sempre o mais novo)
         const int MaxReading = 3;
@@ -24,14 +23,20 @@ namespace MicroWorksCoop.Local
         /// <summary>O jogador desta vaga (do Hub) quer a parte dele no celular.</summary>
         public static bool Wants(int seat) => Plugin.Hub != null && Plugin.Hub.ViewWanted(seat);
 
-        /// <summary>A imagem onde a câmera de quem está no celular desenha.</summary>
+        /// <summary>
+        /// A imagem onde a câmera de quem está no celular desenha: no formato da tela do celular dele (o Hub diz;
+        /// 360 de altura), assim enche a tela, sem faixas. Muda junto quando a pessoa gira o celular.
+        /// </summary>
         public static RenderTexture TargetFor(int seat)
         {
             RenderTexture rt = targets[seat];
-            if (rt != null) return rt;
-            rt = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { name = $"PartyAnywhere.Phone.P{seat + 1}" };
+            int w = 640, h = 360;
+            if (Plugin.Hub != null) Plugin.Hub.ViewSize(seat, out w, out h);
+            if (rt != null && rt.width == w && rt.height == h) return rt;
+            if (rt != null) Release(seat);
+            rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { name = $"PartyAnywhere.Phone.P{seat + 1}" };
             rt.Create();
-            Plugin.Log.LogInfo($"P{seat + 1}: tela do jogo no celular");
+            Plugin.Log.LogInfo($"P{seat + 1}: tela do jogo no celular ({w}x{h})");
             return targets[seat] = rt;
         }
 

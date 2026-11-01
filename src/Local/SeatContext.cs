@@ -78,6 +78,19 @@ namespace MicroWorksCoop.Local
             GlobalData.localPlayer = t.PreviousGlobal;
         }
 
+        /// <summary>
+        /// Um objeto passou a ser de um jogador extra (a arma na mão, o sapo, um projétil): o código dele também roda
+        /// no contexto do extra, e os componentes já vistos são procurados de novo.
+        /// </summary>
+        public static void Owned(GameObject obj)
+        {
+            componentSeat.Clear();
+            ContextPatcher.PatchTypesOf(obj);
+        }
+
+        /// <summary>Um objeto deixou de ser de um extra: os componentes vistos são procurados de novo.</summary>
+        public static void Disowned() => componentSeat.Clear();
+
         /// <summary>A vaga do jogador extra dono deste componente, ou -1 (o de quem hospeda, ou de ninguém).</summary>
         public static int SeatOf(Component c)
         {
@@ -86,6 +99,8 @@ namespace MicroWorksCoop.Local
             if (componentSeat.TryGetValue(id, out int seat)) return seat;
             PlayerController pc = c.GetComponentInParent<PlayerController>();
             seat = pc != null && rootSeat.TryGetValue(pc.gameObject.GetInstanceID(), out int s) ? s : -1;
+            // fora do personagem: o que a rede diz que é dele (a arma antes de ir para a mão, o sapo, o kart, projéteis)
+            if (seat < 0 && pc == null) seat = SeatAuthority.SeatOf(c.GetComponentInParent<NetworkIdentity>());
             // o que não é do personagem mas é dele (a cópia do HUD), mesmo desligado
             for (Transform t = c.transform; seat < 0 && pc == null && t != null; t = t.parent)
                 if (t.TryGetComponent(out SeatOwner owner)) seat = owner.Seat;

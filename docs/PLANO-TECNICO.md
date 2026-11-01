@@ -1,4 +1,8 @@
-# MicroWorks Co-op Local: plano técnico
+# MicroWorks Co-op Local: plano técnico (histórico)
+
+> Descartado em 31/10/2026: este era o plano de uma cópia do jogo por jogador. O mod roda num jogo só, com
+> todos dentro dele (ver PLANO-UM-JOGO.md); o código das cópias saiu em 01/11/2026. Fica aqui pelo que ensina
+> sobre o jogo por dentro.
 
 Objetivo: até 10 pessoas no mesmo PC jogando MicroWorks **exatamente como no multiplayer online**, mas com
 todo mundo no mesmo PC: tela dividida na TV e, para quem joga pelo celular, a própria visão no celular (e

@@ -1,9 +1,14 @@
-// PartyAnywhere.cs: o SDK do Party Anywhere (ABI 1) em C#, sem DLL nativa.
-// Espelha sdk/c/party_anywhere.h (memória compartilhada "Local\PartyAnywhere.v1"); mudar este layout é
-// mudança de ABI. Docs: https://github.com/joaocaioo/party-anywhere/blob/main/docs/SDK.md
+// PartyAnywhere.cs: o SDK do Party Anywhere (ABI 1) em C#, sem DLL nativa. Um arquivo: copie para o projeto
+// (Unity com BepInEx ou MelonLoader, .NET, Godot C#) e marque "permitir código unsafe".
 //
-// Além do Connect (o jogo conectado, dono do game_pid), há o Observe: um processo que só lê as vagas e
-// escreve a tela da própria vaga. É o que as cópias extras do jogo usam quando cada jogador roda a sua.
+// Espelha sdk/c/party_anywhere.h (memória compartilhada "Local\PartyAnywhere.v1"); o contrato completo está em
+// `pa docs sdk`. Mudar este layout é mudança de ABI.
+//
+//   if (Client.Connect(out var hub) != Result.Ok) { /* Hub fechado: tente de novo a cada 1 ou 2 s */ }
+//   // a cada frame, na thread do jogo:
+//   hub.Poll();
+//   while (hub.NextEvent(out var ev)) { /* SeatJoined, SeatLeft... */ }
+//   for (int s = 0; s < Client.MaxSeats; s++) if (hub.GetPad(s, out var pad)) { /* pad.Lx, pad.Held... */ }
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -60,18 +65,22 @@ namespace PartyAnywhere
         public const int AllSeats = -1;
         public const int ViewMaxWidth = 1280;
         public const int ViewMaxHeight = 720;
+        /// <summary>Altura da imagem do celular (a largura segue o formato da tela dele).</summary>
+        public const int ViewHeight = 360;
 
         const string ShmName = @"Local\PartyAnywhere.v1";
         const string ViewPrefix = @"Local\PartyAnywhere.v1.view.";
         const uint ShmMagic = 0x31484150u; // "PAH1"
         const uint ViewMagic = 0x57454956u; // "VIEW"
-        const int ShmSize = 4976;
+        const int ShmSizeV1 = 4976;         // a primeira versão da ABI 1: um Hub assim continua servindo
+        const int ShmSize = 5056;           // com a câmera por deslocamento
         const int ViewHeaderSize = 64;
-        const int ViewSize = ViewHeaderSize + ViewMaxWidth * ViewMaxHeight * 4;
+        const int ViewBytes = ViewHeaderSize + ViewMaxWidth * ViewMaxHeight * 4;
         const int Cmds = 64;
         const int EventCap = 64;
         const long HubLostMs = 1500;
         const int ReadTries = 1000;
+        const uint CapLook = 1;
 
         enum Cmd : byte { Rumble = 1, Toast = 2, Accepting = 3, Label = 4, Layout = 5, Light = 6, Mode = 7 }
 
@@ -102,7 +111,7 @@ namespace PartyAnywhere
         {
             public uint Magic, Abi, Size, HubHeartbeat;
             public int GamePid;
-            public uint Reserved;
+            public int GameCaps; // o jogo escreve o que usa (CapLook)
             public fixed byte JoinUrl[128];
         }
 
@@ -111,7 +120,8 @@ namespace PartyAnywhere
         {
             public uint Magic, Version, Wanted, Width, Height, Stride, Seq, Reserved;
             public ulong TimestampUs;
-            public fixed byte Pad_[24];
+            public uint AspectMilli; // o Hub escreve: largura / altura da tela do celular x 1000 (0 = não sabe)
+            public fixed byte Pad_[20];
         }
 
         // deslocamentos dentro de pa_shm
@@ -119,17 +129,19 @@ namespace PartyAnywhere
         const int CmdWriteOffset = SeatsOffset + MaxSeats * 72; // 872
         const int CmdReadOffset = CmdWriteOffset + 4;
         const int CmdsOffset = CmdReadOffset + 4;               // 880
+        const int LookOffset = CmdsOffset + Cmds * 64;          // 4976
 
         static Client()
         {
-            if (sizeof(ShmSeat) != 72 || sizeof(ShmCmd) != 64 || sizeof(ShmHeader) != SeatsOffset || sizeof(ViewHeader) != ViewHeaderSize)
+            if (sizeof(ShmSeat) != 72 || sizeof(ShmCmd) != 64 || sizeof(ShmHeader) != SeatsOffset || sizeof(ViewHeader) != ViewHeaderSize || LookOffset != ShmSizeV1)
                 throw new InvalidOperationException("PartyAnywhere: layout da memória compartilhada não bate com a ABI 1");
         }
 
         IntPtr mapping;
         byte* shm;
         readonly int pid;
-        readonly bool owner; // false: só observa (sem game_pid, sem comandos para o Hub)
+        readonly bool hasLook;
+        bool saidLook;
         bool lost;
         uint lastHeartbeat;
         long heartbeatAt;
@@ -144,12 +156,12 @@ namespace PartyAnywhere
         readonly byte*[] view = new byte*[MaxSeats];
         readonly long[] viewNextTry = new long[MaxSeats];
 
-        Client(IntPtr mapping, byte* shm, bool owner)
+        Client(IntPtr mapping, byte* shm, int pid)
         {
             this.mapping = mapping;
             this.shm = shm;
-            this.owner = owner;
-            pid = Process.GetCurrentProcess().Id;
+            this.pid = pid;
+            hasLook = Header->Size >= ShmSize;
             lastHeartbeat = Header->HubHeartbeat;
             heartbeatAt = NowMs();
         }
@@ -157,37 +169,33 @@ namespace PartyAnywhere
         ShmHeader* Header => (ShmHeader*)shm;
         ShmSeat* Seat(int s) => (ShmSeat*)(shm + SeatsOffset + s * sizeof(ShmSeat));
 
-        /// <summary>Conecta como o jogo do Hub (um por vez: <see cref="Result.Busy"/> se outro já está).</summary>
-        public static Result Connect(out Client client) => Open(true, out client);
-
-        /// <summary>Lê as vagas sem conectar como o jogo. Para processos extras do mesmo jogo.</summary>
-        public static Result Observe(out Client client) => Open(false, out client);
-
-        static Result Open(bool owner, out Client client)
+        /// <summary>Conecta ao Hub aberto. Um jogo por vez: <see cref="Result.Busy"/> se outro já está.</summary>
+        public static Result Connect(out Client client)
         {
             client = null;
             IntPtr h = Native.OpenFileMappingW(Native.FILE_MAP_ALL_ACCESS, false, ShmName);
             if (h == IntPtr.Zero) return Result.HubNotRunning;
-            byte* p = (byte*)Native.MapViewOfFile(h, Native.FILE_MAP_ALL_ACCESS, 0, 0, (UIntPtr)ShmSize);
+            // a memória inteira: um Hub mais velho tem menos (sem a câmera por deslocamento)
+            byte* p = (byte*)Native.MapViewOfFile(h, Native.FILE_MAP_ALL_ACCESS, 0, 0, UIntPtr.Zero);
             if (p == null) { Native.CloseHandle(h); return Result.HubNotRunning; }
             var hdr = (ShmHeader*)p;
+            int me = Process.GetCurrentProcess().Id;
             Result r = Result.Ok;
             if (hdr->Magic != ShmMagic) r = Result.HubNotRunning;
-            else if (hdr->Abi != AbiVersion || hdr->Size < ShmSize) r = Result.Version;
-            else if (owner)
+            else if (hdr->Abi != AbiVersion || hdr->Size < ShmSizeV1) r = Result.Version;
+            else
             {
-                int me = Process.GetCurrentProcess().Id;
                 int prev = Interlocked.CompareExchange(ref hdr->GamePid, me, 0);
                 if (prev != 0 && prev != me) r = Result.Busy;
             }
             if (r != Result.Ok) { Native.UnmapViewOfFile((IntPtr)p); Native.CloseHandle(h); return r; }
-            client = new Client(h, p, owner);
+            client = new Client(h, p, me);
             return Result.Ok;
         }
 
-        public bool IsOwner => owner;
         public bool IsConnected => shm != null && !lost;
 
+        /// <summary>O endereço do QR, para o jogo desenhar o próprio lobby.</summary>
         public string JoinUrl => shm == null ? "" : Utf8(Header->JoinUrl, 128);
 
         /// <summary>Uma vez por frame, na thread do jogo.</summary>
@@ -285,7 +293,30 @@ namespace PartyAnywhere
             return true;
         }
 
-        // ---- do jogo para o jogador (só o dono; quem observa não manda comandos) ----
+        /// <summary>
+        /// Câmera por deslocamento: quanto o jogador arrastou o dedo na direita do celular desde a última chamada, em
+        /// graus (direita e para cima positivos). Some ao ângulo da câmera, como o mouse, e continue lendo o analógico
+        /// direito para quem joga com controle. Chamar já avisa o Hub, que troca o analógico direito do celular pela
+        /// área de câmera. false: sem movimento (ou um Hub mais velho).
+        /// </summary>
+        public bool TakeLook(int seat, out float dxDeg, out float dyDeg)
+        {
+            dxDeg = dyDeg = 0f;
+            if (shm == null || !hasLook || seat < 0 || seat >= MaxSeats) return false;
+            if (!saidLook)
+            {
+                InterlockedOr(ref Header->GameCaps, (int)CapLook);
+                saidLook = true;
+            }
+            int* look = (int*)(shm + LookOffset) + seat * 2;
+            int x = Interlocked.Exchange(ref look[0], 0);
+            int y = Interlocked.Exchange(ref look[1], 0);
+            dxDeg = x / 1000f;
+            dyDeg = y / 1000f;
+            return x != 0 || y != 0;
+        }
+
+        // ---- do jogo para o jogador ----
 
         public void SetAcceptingPlayers(bool accepting)
         {
@@ -298,6 +329,7 @@ namespace PartyAnywhere
             sentAccepting = want;
         }
 
+        /// <summary>Gamepad ou Simple no celular da vaga, no lugar do "Padrão do jogo". Driving e Menu: reservados.</summary>
         public void SetLayout(int seat, Layout layout)
         {
             ShmCmd* c = BeginCmd(Cmd.Layout, seat);
@@ -352,7 +384,7 @@ namespace PartyAnywhere
             Commit();
         }
 
-        // ---- a tela do jogo no celular ----
+        // ---- a tela do jogo no celular (o jogador liga no menu do celular) ----
 
         /// <summary>true quando o celular desta vaga mostra a tela do jogo: tire a parte dela da TV e entregue a visão.</summary>
         public bool ViewWanted(int seat)
@@ -362,7 +394,21 @@ namespace PartyAnywhere
             return seen[seat].State == (byte)SeatState.Active; // reconectando, a vaga fica na TV como sempre
         }
 
-        /// <summary>Entrega a visão do jogador (BGRA, até 1280x720). Copia, então o buffer pode ser reusado.</summary>
+        /// <summary>O tamanho da imagem para o celular desta vaga: 360 de altura, na proporção da tela dele (640x360 se não souber).</summary>
+        public void ViewSize(int seat, out int width, out int height)
+        {
+            byte* v = View(seat);
+            uint a = v == null ? 0 : Volatile.Read(ref ((ViewHeader*)v)->AspectMilli);
+            if (a < 1000 || a > 3000) a = 16000 / 9;
+            int w = (int)((ViewHeight * a + 500) / 1000) & ~1;
+            width = w > ViewMaxWidth ? ViewMaxWidth : w;
+            height = ViewHeight;
+        }
+
+        /// <summary>
+        /// Entrega a visão do jogador (BGRA, até 1280x720). Copia, então o buffer pode ser reusado. Stride negativo:
+        /// imagem de baixo para cima (como a leitura da placa de vídeo), com <paramref name="bgra"/> na última linha.
+        /// </summary>
         public bool SubmitView(int seat, byte* bgra, int width, int height, int strideBytes)
         {
             if (bgra == null || width <= 0 || height <= 0 || !ViewWanted(seat)) return false;
@@ -384,7 +430,7 @@ namespace PartyAnywhere
 
         public bool SubmitView(int seat, byte[] bgra, int width, int height, int strideBytes)
         {
-            if (bgra == null || bgra.Length < (long)strideBytes * height) return false;
+            if (bgra == null || strideBytes < 0 || bgra.Length < (long)strideBytes * height) return false;
             fixed (byte* p = bgra) return SubmitView(seat, p, width, height, strideBytes);
         }
 
@@ -398,7 +444,7 @@ namespace PartyAnywhere
                 view[s] = null;
                 viewMap[s] = IntPtr.Zero;
             }
-            if (owner) Interlocked.CompareExchange(ref Header->GamePid, 0, pid);
+            Interlocked.CompareExchange(ref Header->GamePid, 0, pid);
             Native.UnmapViewOfFile((IntPtr)shm);
             Native.CloseHandle(mapping);
             shm = null;
@@ -416,7 +462,7 @@ namespace PartyAnywhere
             viewNextTry[seat] = now + 1000;
             IntPtr h = Native.OpenFileMappingW(Native.FILE_MAP_ALL_ACCESS, false, ViewPrefix + seat);
             if (h == IntPtr.Zero) return null;
-            byte* v = (byte*)Native.MapViewOfFile(h, Native.FILE_MAP_ALL_ACCESS, 0, 0, (UIntPtr)ViewSize);
+            byte* v = (byte*)Native.MapViewOfFile(h, Native.FILE_MAP_ALL_ACCESS, 0, 0, (UIntPtr)ViewBytes);
             if (v == null) { Native.CloseHandle(h); return null; }
             if (((ViewHeader*)v)->Magic != ViewMagic) { Native.UnmapViewOfFile((IntPtr)v); Native.CloseHandle(h); return null; }
             viewMap[seat] = h;
@@ -442,7 +488,7 @@ namespace PartyAnywhere
 
         ShmCmd* BeginCmd(Cmd type, int seat)
         {
-            if (!owner || shm == null || seat < AllSeats || seat >= MaxSeats) return null;
+            if (shm == null || seat < AllSeats || seat >= MaxSeats) return null;
             uint write = *(uint*)(shm + CmdWriteOffset);
             uint read = Volatile.Read(ref *(uint*)(shm + CmdReadOffset));
             if (write - read >= Cmds) return null; // Hub atrasado: descarta
@@ -464,6 +510,18 @@ namespace PartyAnywhere
             if (evTail - evHead >= EventCap) return; // o jogo não leu: descarta o mais novo
             events[evTail % EventCap] = new Event { Type = type, Seat = seat };
             evTail++;
+        }
+
+        // Interlocked.Or só existe no .NET 5+; o Unity antigo (Mono, .NET 4.x) não tem
+        static void InterlockedOr(ref int target, int bits)
+        {
+            int seen = Volatile.Read(ref target);
+            while (true)
+            {
+                int prev = Interlocked.CompareExchange(ref target, seen | bits, seen);
+                if (prev == seen) return;
+                seen = prev;
+            }
         }
 
         static bool SameName(ShmSeat* a, ShmSeat* b)
