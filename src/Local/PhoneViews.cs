@@ -14,10 +14,12 @@ namespace MicroWorksCoop.Local
     class PhoneViews : MonoBehaviour
     {
         const int Width = 640, Height = 360; // o padrão do SDK: chega rápido ao celular e custa pouco desenhar
-        const int EveryFrames = 2;           // o Hub manda até 30 por segundo, sempre o quadro mais novo
+        // uma leitura leva de 1 a 3 quadros para voltar: várias ao mesmo tempo, uma pedida a cada quadro (o Hub
+        // manda até 30 por segundo, sempre o mais novo)
+        const int MaxReading = 3;
 
         static readonly RenderTexture[] targets = new RenderTexture[Client.MaxSeats];
-        static readonly bool[] reading = new bool[Client.MaxSeats];
+        static readonly int[] reading = new int[Client.MaxSeats];
 
         /// <summary>O jogador desta vaga (do Hub) quer a parte dele no celular.</summary>
         public static bool Wants(int seat) => Plugin.Hub != null && Plugin.Hub.ViewWanted(seat);
@@ -46,22 +48,21 @@ namespace MicroWorksCoop.Local
             RenderTexture rt = targets[seat];
             if (rt == null) return;
             targets[seat] = null;
-            if (!reading[seat]) Destroy(rt); // senão, a leitura em andamento termina e solta
+            if (reading[seat] == 0) Destroy(rt); // senão, a última leitura em andamento termina e solta
             Plugin.Log.LogInfo($"P{seat + 1}: de volta à TV");
         }
 
         IEnumerator Start()
         {
             var endOfFrame = new WaitForEndOfFrame();
-            for (int frame = 0; ; frame++)
+            while (true)
             {
                 yield return endOfFrame;
-                if (frame % EveryFrames != 0) continue;
                 for (int seat = 0; seat < Client.MaxSeats; seat++)
                 {
                     RenderTexture rt = targets[seat];
-                    if (rt == null || reading[seat]) continue;
-                    reading[seat] = true;
+                    if (rt == null || reading[seat] >= MaxReading) continue;
+                    reading[seat]++;
                     int s = seat;
                     AsyncGPUReadback.Request(rt, 0, TextureFormat.BGRA32, r => Deliver(s, rt, r));
                 }
@@ -70,8 +71,12 @@ namespace MicroWorksCoop.Local
 
         static unsafe void Deliver(int seat, RenderTexture rt, AsyncGPUReadbackRequest r)
         {
-            reading[seat] = false;
-            if (targets[seat] != rt) { Destroy(rt); return; } // voltou para a TV enquanto lia
+            reading[seat]--;
+            if (targets[seat] != rt) // voltou para a TV enquanto lia
+            {
+                if (reading[seat] == 0 && rt != null) Destroy(rt);
+                return;
+            }
             if (r.hasError || Plugin.Hub == null) return;
             var data = r.GetData<byte>();
             var p = (byte*)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(data);
