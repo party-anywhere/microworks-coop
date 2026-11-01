@@ -74,6 +74,24 @@ namespace MicroWorksCoop.Local
             }
         }
 
+        // com a última linha incompleta (3, 5, 7, 8, 10 jogadores) sobram cantos que nenhuma câmera desenha: ali
+        // ficaria a imagem de quadros antigos
+        void OnGUI()
+        {
+            if (!split || UnityEngine.Event.current.type != UnityEngine.EventType.Repaint) return;
+            int n = order.Count;
+            (int cols, int rows) = Grid.Shape(n);
+            int empty = cols * rows - n;
+            if (empty == 0) return;
+            float w = Screen.width / (float)cols, h = Screen.height / (float)rows;
+            float shift = empty * w / 2f, y = Screen.height - h; // a última linha, de cima para baixo na tela
+            Color was = GUI.color;
+            GUI.color = Color.black;
+            GUI.DrawTexture(new Rect(0f, y, shift, h), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(Screen.width - shift, y, shift, h), Texture2D.whiteTexture);
+            GUI.color = was;
+        }
+
         void Place(PlayerController pc, int seat, int index, Rect part, bool listen)
         {
             int id = pc.GetInstanceID();
