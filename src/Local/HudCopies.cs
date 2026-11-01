@@ -31,6 +31,8 @@ namespace MicroWorksCoop.Local
     {
         // as telas do HUD que são de cada jogador; o resto (votação, lista de jogadores, pausa) segue um só
         static readonly HashSet<string> perPlayer = new HashSet<string> { "Game", "MiscItems", "IndicatorsCanvas", "CustomCanvas" };
+        // os avisos (fulano entrou, votação, combo) são um só, na parte de quem hospeda: soltos, cobririam a de outro
+        static readonly HashSet<string> hostPart = new HashSet<string> { "Notifications" };
 
         // o que só vale para quem hospeda quando chamado fora do contexto de um extra (cada extra tem o seu caminho)
         static readonly HashSet<string> hostOnly = new HashSet<string>
@@ -81,7 +83,7 @@ namespace MicroWorksCoop.Local
             {
                 foreach (int seat in copies.Keys.ToList()) Drop(seat);
                 main = hud;
-                mainCanvases = hud != null ? CanvasesUnder(hud.gameObject) : new Canvas[0];
+                mainCanvases = hud != null ? CanvasesUnder(hud.gameObject, hostPart) : new Canvas[0];
             }
             if (main == null) return;
             // já na chegada da fase, antes das animações do HUD (uma cópia no meio de uma animação fica torta), para
@@ -100,11 +102,11 @@ namespace MicroWorksCoop.Local
             }
         }
 
-        static Canvas[] CanvasesUnder(GameObject root)
+        static Canvas[] CanvasesUnder(GameObject root, HashSet<string> also = null)
         {
             var list = new List<Canvas>();
             foreach (Transform child in root.transform)
-                if (perPlayer.Contains(child.name) && child.TryGetComponent(out Canvas canvas)) list.Add(canvas);
+                if ((perPlayer.Contains(child.name) || also != null && also.Contains(child.name)) && child.TryGetComponent(out Canvas canvas)) list.Add(canvas);
             return list.ToArray();
         }
 
