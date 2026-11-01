@@ -77,6 +77,7 @@ namespace MicroWorksCoop
                 // um jogo só: os outros jogadores do lobby entram nesta partida, com a tela dividida aqui
                 gameObject.AddComponent<LocalPlayers>();
                 gameObject.AddComponent<SplitScreen>();
+                gameObject.AddComponent<PhoneViews>();
                 if (Config.Bind("Desenvolvimento", "DiagnosticoTelaDividida", false, "Anota no log onde cada jogador aparece na câmera de quem hospeda.").Value)
                     gameObject.AddComponent<SplitDiag>();
             }

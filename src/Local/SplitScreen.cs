@@ -9,6 +9,8 @@ namespace MicroWorksCoop.Local
     /// A tela dividida dentro da janela do jogo: a câmera de cada jogador deste PC desenha só na parte dela
     /// (a mesma grade do Hub: 1; 2 lado a lado; 2x2; 3x2; 3x3; 4x3), quem hospeda primeiro e os outros em ordem
     /// de vaga. O HUD de cada um fica dentro da parte dele; só a câmera de quem hospeda ouve (um som só).
+    /// Quem ligou a tela do jogo no celular sai da grade: a câmera e o HUD dele desenham na imagem do celular
+    /// (PhoneViews), e a TV se divide entre os outros.
     ///
     /// Em primeira pessoa o jogo esconde o corpo do jogador local, e aqui todos são locais. Cada corpo vai para
     /// uma camada só dele (das que o jogo não usa) e fica ligado; a câmera de cada um deixa de desenhar só a
@@ -23,6 +25,9 @@ namespace MicroWorksCoop.Local
 
         readonly List<PlayerController> order = new List<PlayerController>(Client.MaxSeats);
         readonly List<int> seats = new List<int>(Client.MaxSeats); // a vaga de cada um em order (-1: quem hospeda)
+        readonly List<int> tv = new List<int>(Client.MaxSeats);    // quem de order está na TV (o resto, no celular)
+        readonly bool[] onPhone = new bool[Client.MaxSeats];
+        readonly Dictionary<int, (RenderMode mode, Camera camera, float distance)> canvasMode = new Dictionary<int, (RenderMode, Camera, float)>();
         readonly Dictionary<int, Camera[]> cameras = new Dictionary<int, Camera[]>();
         readonly Dictionary<int, AudioListener[]> listeners = new Dictionary<int, AudioListener[]>();
         readonly Dictionary<int, RectTransform[]> huds = new Dictionary<int, RectTransform[]>();      // HUD do jogador
@@ -58,6 +63,24 @@ namespace MicroWorksCoop.Local
                 matchHuds.Clear();
                 bodies.Clear();
             }
+            tv.Clear();
+            for (int i = 0; i < order.Count; i++)
+            {
+                int hubSeat = HubSeat(i);
+                bool phone = PhoneViews.Wants(hubSeat);
+                if (!phone) tv.Add(i);
+                if (phone != onPhone[hubSeat])
+                {
+                    onPhone[hubSeat] = phone;
+                    if (!phone) PhoneViews.Release(hubSeat);
+                    huds.Clear(); // as telas do HUD mudam de modo (por cima da TV / dentro da imagem do celular)
+                    matchHuds.Clear();
+                }
+            }
+            // quem saiu da partida estando no celular
+            for (int s = 0; s < Client.MaxSeats; s++)
+                if (onPhone[s] && !seats.Contains(s) && !(s == Plugin.Seat && seats.Contains(-1))) { onPhone[s] = false; PhoneViews.Release(s); }
+
             SplitGraphics.Update(order.Count);
             bool rescan = cameras.Count == 0;
             bool wasSplit = split;
@@ -67,39 +90,58 @@ namespace MicroWorksCoop.Local
             if (split && rescan) OtherCamerasSeeBodies();
             if (order.Count == 0) return;
 
+            var full = new Rect(0f, 0f, 1f, 1f);
             for (int i = 0; i < order.Count; i++)
             {
-                Rect part = split ? Grid.Part(order.Count, i) : new Rect(0f, 0f, 1f, 1f);
-                Place(order[i], seats[i], i, part, listen: i == 0);
+                int place = tv.IndexOf(i);
+                RenderTexture phone = place < 0 ? PhoneViews.TargetFor(HubSeat(i)) : null;
+                Rect part = phone != null || tv.Count == 1 ? full : Grid.Part(tv.Count, place);
+                Place(order[i], seats[i], i, part, listen: i == 0, phone);
             }
         }
+
+        int HubSeat(int i) => seats[i] < 0 ? Plugin.Seat : seats[i];
 
         // com a última linha incompleta (3, 5, 7, 8, 10 jogadores) sobram cantos que nenhuma câmera desenha: ali
         // ficaria a imagem de quadros antigos
         void OnGUI()
         {
-            if (!split || UnityEngine.Event.current.type != UnityEngine.EventType.Repaint) return;
-            int n = order.Count;
+            if (order.Count == 0 || UnityEngine.Event.current.type != UnityEngine.EventType.Repaint) return;
+            Color was = GUI.color;
+            GUI.color = Color.black;
+            if (tv.Count == 0)
+            {
+                // todos jogando pelo celular: a TV fica escura, com o aviso
+                GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
+                GUI.color = Color.white;
+                var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = Screen.height / 24 };
+                GUI.Label(new Rect(0f, 0f, Screen.width, Screen.height), "Todos jogando pelo celular", style);
+                GUI.color = was;
+                return;
+            }
+            GUI.color = was;
+            int n = tv.Count;
+            if (n < 2) return;
             (int cols, int rows) = Grid.Shape(n);
             int empty = cols * rows - n;
             if (empty == 0) return;
             float w = Screen.width / (float)cols, h = Screen.height / (float)rows;
             float shift = empty * w / 2f, y = Screen.height - h; // a última linha, de cima para baixo na tela
-            Color was = GUI.color;
             GUI.color = Color.black;
             GUI.DrawTexture(new Rect(0f, y, shift, h), Texture2D.whiteTexture);
             GUI.DrawTexture(new Rect(Screen.width - shift, y, shift, h), Texture2D.whiteTexture);
             GUI.color = was;
         }
 
-        void Place(PlayerController pc, int seat, int index, Rect part, bool listen)
+        void Place(PlayerController pc, int seat, int index, Rect part, bool listen, RenderTexture phone)
         {
             int id = pc.GetInstanceID();
             if (!cameras.TryGetValue(id, out Camera[] cams)) cameras[id] = cams = pc.GetComponentsInChildren<Camera>(true);
             foreach (Camera cam in cams)
             {
-                // câmeras que desenham numa imagem (retrato, espelho) ficam como estão
-                if (cam == null || cam.targetTexture != null) continue;
+                // câmeras que desenham numa imagem do jogo (retrato, espelho) ficam como estão
+                if (cam == null || cam.targetTexture != null && !PhoneViews.IsOurs(cam.targetTexture)) continue;
+                if (cam.targetTexture != phone) cam.targetTexture = phone;
                 if (cam.rect != part) cam.rect = part;
                 if (!split) continue;
                 int camId = cam.GetInstanceID();
@@ -117,27 +159,66 @@ namespace MicroWorksCoop.Local
             // do HUD vai para uma moldura no lugar da parte dele.
             // O do jogador (mira, avisos de "usar") se estica até a parte, um pouco menor quanto menor ela for.
             if (!huds.TryGetValue(id, out RectTransform[] frames))
+            {
                 huds[id] = frames = pc.playerHUD != null ? Frames(pc.playerHUD.GetComponentsInChildren<Canvas>(true)) : new RectTransform[0];
+                Draw(frames, phone != null ? pc.playerCamera : null);
+            }
             float scale = Mathf.Clamp(Mathf.Sqrt(part.width * part.height) * 1.25f, 0.35f, 1f);
             Vector2 center = part.center;
             foreach (RectTransform frame in frames)
-                if (frame != null) Fit(frame, center, Size(frame, part.size / scale), scale, Vector2.zero);
+                if (frame != null) Fit(frame, center, Vector2.Scale(Design(frame, out float unit), part.size / scale), scale * unit, Vector2.zero);
             // O da partida (rodada, placar, resultado) é montado a partir do meio da tela: encolhe inteiro, sem
             // mudar a proporção, no alto da parte. O meio da moldura continua sendo o meio (as animações do jogo
             // contam a partir dele); ela só sobe até encostar no alto
-            if (!matchHuds.TryGetValue(id, out RectTransform[] match)) matchHuds[id] = match = Frames(HudCopies.CanvasesOf(seat));
+            if (!matchHuds.TryGetValue(id, out RectTransform[] match))
+            {
+                matchHuds[id] = match = Frames(HudCopies.CanvasesOf(seat));
+                Draw(match, phone != null ? pc.playerCamera : null);
+            }
             float fit = Mathf.Min(part.width, part.height);
             var top = new Vector2(part.center.x, part.yMax);
             foreach (RectTransform frame in match)
             {
                 if (frame == null) continue;
-                Vector2 full = Size(frame, Vector2.one);
-                Fit(frame, top, full, fit, new Vector2(0f, -full.y * fit / 2f));
+                Vector2 full = Design(frame, out float unit);
+                Fit(frame, top, full, fit * unit, new Vector2(0f, -full.y * fit * unit / 2f));
             }
         }
 
-        // o tamanho, nas unidades da tela do HUD, de uma fração dela
-        static Vector2 Size(RectTransform frame, Vector2 fraction) => Vector2.Scale(((RectTransform)frame.parent).rect.size, fraction);
+        // no celular, o HUD vai dentro da imagem que a câmera do jogador desenha; na TV, volta a ser como o jogo fez
+        void Draw(RectTransform[] frames, Camera phoneCamera)
+        {
+            foreach (RectTransform frame in frames)
+            {
+                if (frame == null || !frame.parent.TryGetComponent(out Canvas canvas)) continue;
+                int canvasId = canvas.GetInstanceID();
+                if (phoneCamera != null)
+                {
+                    if (!canvasMode.ContainsKey(canvasId)) canvasMode[canvasId] = (canvas.renderMode, canvas.worldCamera, canvas.planeDistance);
+                    canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                    canvas.worldCamera = phoneCamera;
+                    canvas.planeDistance = phoneCamera.nearClipPlane + 0.01f;
+                }
+                else if (canvasMode.TryGetValue(canvasId, out var was))
+                {
+                    canvasMode.Remove(canvasId);
+                    canvas.renderMode = was.mode;
+                    canvas.worldCamera = was.camera;
+                    canvas.planeDistance = was.distance;
+                }
+            }
+        }
+
+        // o tamanho para o qual o HUD foi feito: o da janela, nas unidades da tela do HUD. Na imagem do celular a tela
+        // do HUD é menor (o ajuste de escala do jogo mede a janela, não a imagem): unit é quanto encolher para caber
+        static Vector2 Design(RectTransform frame, out float unit)
+        {
+            var parent = (RectTransform)frame.parent;
+            float factor = parent.TryGetComponent(out Canvas canvas) && canvas.scaleFactor > 0f ? canvas.scaleFactor : 1f;
+            var design = new Vector2(Screen.width, Screen.height) / factor;
+            unit = parent.rect.width > 0f ? parent.rect.width / design.x : 1f;
+            return design;
+        }
 
         static void Fit(RectTransform frame, Vector2 anchor, Vector2 size, float scale, Vector2 offset)
         {
