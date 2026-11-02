@@ -41,6 +41,7 @@ namespace MicroWorksCoop.Local
             public int Length;                        // sequência: quantas cores; empilhar: quantas fileiras
             public float Ends;
             public bool Ready;
+            public Action<string> Send; // a resposta por outro caminho que não o evento do desafio (o chefe de perguntas)
         }
 
         const float RepeatAfter = 0.35f, RepeatEvery = 0.12f;
@@ -80,7 +81,7 @@ namespace MicroWorksCoop.Local
                 session = Build(pending.Value, coord);
                 pending = null;
             }
-            if (session != null && (coord == null || coord.Microgame != session.Game || Time.unscaledTime > session.Ends)) EndAll();
+            if (session != null && (coord == null || session.Game != null && coord.Microgame != session.Game || Time.unscaledTime > session.Ends)) EndAll();
             HostPda.Update(hidden: session != null && HostNeedsPanel());
 
             for (int seat = 0; seat < Client.MaxSeats; seat++)
@@ -132,12 +133,42 @@ namespace MicroWorksCoop.Local
         {
             if (answeredIn != s) { answeredIn = s; answered.Clear(); }
             answered.Add(seat);
-            if (s.Game == null) return;
+            if (s.Game == null && s.Send == null) return;
             SeatContext.Token t = seat == Plugin.Seat ? default : SeatContext.Enter(seat);
-            try { s.Game.SendClientEvent(s.Event, value); }
+            try
+            {
+                if (s.Send != null) s.Send(value);
+                else s.Game.SendClientEvent(s.Event, value);
+            }
             catch (Exception e) { Plugin.Log.LogWarning($"P{seat + 1}: a resposta não foi ({e.GetType().Name}: {e.Message})"); }
             finally { SeatContext.Exit(t); }
             Plugin.Log.LogInfo($"P{seat + 1} respondeu {s.Event}: {value}");
+        }
+
+        /// <summary>
+        /// O chefe de perguntas (Trivia Mastermind) abre o PDA só para o jogador local: cada pergunta nova abre o
+        /// painel de escolha para os outros, e a resposta vai pelo mesmo comando do PDA do chefe, no nome de cada um.
+        /// </summary>
+        public static void BossQuestion(TriviaMastermindBossStage stage, PDATriviaQuestion q)
+        {
+            if (stage == null || q.Answers == null || q.Answers.Length == 0) return;
+            EndAll();
+            var values = new string[q.Answers.Length];
+            for (int i = 0; i < values.Length; i++) values[i] = i.ToString();
+            session = new Session
+            {
+                Kind = Kind.Choice, Event = "TriviaAnswer", Question = q.Question ?? "", Options = q.Answers, Values = values,
+                Ends = Time.unscaledTime + BossQuestionSeconds, Ready = true,
+                Send = v => { if (stage != null && stage.hook != null && int.TryParse(v, out int i)) stage.hook.CmdSendAnswer(i); },
+            };
+        }
+
+        const float BossQuestionSeconds = 20f;
+
+        [HarmonyPatch(typeof(TriviaMastermindBossStage), nameof(TriviaMastermindBossStage.OnNextQuestionReceived))]
+        static class BossTrivia
+        {
+            static void Postfix(TriviaMastermindBossStage __instance, PDATriviaQuestion question) => BossQuestion(__instance, question);
         }
 
         // ---- o desafio, a partir do PDA e do microgame em curso ----

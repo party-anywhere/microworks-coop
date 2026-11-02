@@ -139,7 +139,18 @@ namespace MicroWorksCoop.Local
         void Place(PlayerController pc, int seat, int index, Rect part, bool listen, RenderTexture phone)
         {
             int id = pc.GetInstanceID();
-            if (!cameras.TryGetValue(id, out Camera[] cams)) cameras[id] = cams = pc.GetComponentsInChildren<Camera>(true);
+            // dirigindo o kart ou sendo o sapo, a câmera é a do veículo (fora do personagem): entra na divisão também
+            Component pawn = pc.IsPossessingPawn ? pc.PossessedPawn : null;
+            int camKey = pawn != null ? pawn.GetInstanceID() : id;
+            if (!cameras.TryGetValue(camKey, out Camera[] cams))
+            {
+                Camera[] own = pc.GetComponentsInChildren<Camera>(true);
+                Camera[] extra = pawn != null ? pawn.GetComponentsInChildren<Camera>(true) : new Camera[0];
+                cams = new Camera[own.Length + extra.Length];
+                own.CopyTo(cams, 0);
+                extra.CopyTo(cams, own.Length);
+                cameras[camKey] = cams;
+            }
             foreach (Camera cam in cams)
             {
                 // câmeras que desenham numa imagem do jogo (retrato, espelho) ficam como estão
@@ -271,6 +282,10 @@ namespace MicroWorksCoop.Local
             }
             if (!pc.playerMesh.enabled) pc.ToggleModelVisibility(true);
             ShowHeldWeapon(pc);
+            // o fogo do jetpack (pulo duplo): o jogo apaga para o jogador local em primeira pessoa; os outros veem
+            PlayerJetpack jet = pc.colorCustomizer != null ? pc.colorCustomizer.jetpack : null;
+            if (jet != null && jet.allRenderers != null)
+                foreach (Renderer r in jet.allRenderers) if (r != null && !r.enabled) r.enabled = true;
         }
 
         // o modelo da arma na mão (não o da câmera): o jogo esconde do jogador local, os outros precisam ver

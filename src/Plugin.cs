@@ -51,7 +51,10 @@ namespace MicroWorksCoop
             Log.LogInfo($"{Name} {Version}: um jogo só, com os jogadores do Party Anywhere dentro dele");
             // o jogo segue lendo os controles do Hub sem ser a janela em foco (o Hub ou o navegador por cima)
             Application.runInBackground = true;
-            new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
+            var harmony = new Harmony(Id);
+            harmony.PatchAll(typeof(Plugin).Assembly);
+            Local.SeatTriggers.Install(harmony);
+            Local.SeatClients.InstallEvents(harmony);
             gameObject.AddComponent<CursorOverlay>();
             // os outros jogadores do lobby entram nesta partida, com a tela dividida aqui
             gameObject.AddComponent<LocalPlayers>();

@@ -49,6 +49,7 @@ namespace MicroWorksCoop.Local
                 return;
             }
             if (hostSince < 0f) hostSince = Time.unscaledTime;
+            SeatPawns.Tick();
             if (Time.unscaledTime - hostSince < Settle) return;
 
             for (int seat = 0; seat < Client.MaxSeats; seat++)
@@ -80,6 +81,7 @@ namespace MicroWorksCoop.Local
             }
             setAuthority.Invoke(pc.netIdentity, new object[] { true });
             Plugin.Log.LogInfo($"P{seat + 1} entrou na partida (neste jogo)");
+            SeatPawns.Joined();
         }
 
         static void Despawn(int seat)
@@ -140,25 +142,90 @@ namespace MicroWorksCoop.Local
 
     // O comando de um jogador extra sai pela conexão de quem hospeda (é o mesmo jogo). O servidor só aceita
     // comando do dono do personagem: aqui ele fica sabendo que o dono é a conexão daquele jogador.
+    // Comandos de objetos que não são de ninguém (os da fase, como o "passei no ponto de controle" do kart, que
+    // aceitam comando de qualquer um): o dono é quem mandou. Cada comando enviado anota de que vaga saiu, na ordem, e o
+    // servidor confere a anotação quando ele chega.
     [HarmonyPatch(typeof(NetworkServer), "OnCommandMessage")]
     static class CommandsFromLocalSeats
     {
         static void Prefix(ref NetworkConnection conn, CommandMessage msg)
         {
             if (conn != NetworkServer.localConnection) return;
+            int sentBy = CommandSenders.Take(msg.netId, msg.functionHash);
             if (NetworkIdentity.spawned.TryGetValue(msg.netId, out NetworkIdentity id) && id.connectionToClient is LocalSeatConnection seatConn)
                 conn = seatConn;
+            else if (sentBy >= 0 && SeatContext.PlayerOf(sentBy) is PlayerController pc && pc.connectionToClient != null)
+                conn = pc.connectionToClient;
         }
     }
 
-    // O que o servidor manda só para um jogador extra (TargetRpc) vem para este jogo, onde o personagem dele vive.
+    [HarmonyPatch(typeof(NetworkBehaviour), "SendCommandInternal")]
+    static class CommandSenders
+    {
+        // (netId, função, vaga ou -1 para quem hospeda), na ordem do envio; sem resposta, os mais velhos saem
+        const int Max = 64;
+        static readonly uint[] ids = new uint[Max];
+        static readonly int[] hashes = new int[Max], seats = new int[Max];
+        static int count;
+
+        static readonly Func<Type, string, int> methodHash =
+            AccessTools.MethodDelegate<Func<Type, string, int>>(AccessTools.Method(typeof(Mirror.RemoteCalls.RemoteCallHelper), "GetMethodHash"));
+
+        static void Prefix(NetworkBehaviour __instance, Type invokeClass, string cmdName)
+        {
+            if (!NetworkServer.active) return;
+            if (count == Max) Remove(0);
+            ids[count] = __instance.netId;
+            hashes[count] = methodHash(invokeClass, cmdName);
+            seats[count] = SeatContext.IsExtra ? SeatContext.Seat : -1;
+            count++;
+        }
+
+        public static int Take(uint netId, int hash)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (ids[i] != netId || hashes[i] != hash) continue;
+                int seat = seats[i];
+                Remove(i);
+                return seat;
+            }
+            return -1;
+        }
+
+        static void Remove(int i)
+        {
+            count--;
+            Array.Copy(ids, i + 1, ids, i, count - i);
+            Array.Copy(hashes, i + 1, hashes, i, count - i);
+            Array.Copy(seats, i + 1, seats, i, count - i);
+        }
+    }
+
+    // O que o servidor manda só para um jogador extra (TargetRpc) roda neste jogo, onde o personagem dele vive, já no
+    // contexto dele: o aviso do desafio só para ele, o tranco do empurrão, o teletransporte. Vale também para o que
+    // vem de objetos da fase (o coordenador dos desafios), que não são de ninguém.
     [HarmonyPatch(typeof(NetworkBehaviour), "SendTargetRPCInternal")]
     static class TargetRpcToThisGame
     {
-        static void Prefix(NetworkBehaviour __instance, ref NetworkConnection conn)
+        static readonly Func<Type, string, int> methodHash =
+            AccessTools.MethodDelegate<Func<Type, string, int>>(AccessTools.Method(typeof(Mirror.RemoteCalls.RemoteCallHelper), "GetMethodHash"));
+
+        static bool Prefix(NetworkBehaviour __instance, ref NetworkConnection conn, Type invokeClass, string rpcName, NetworkWriter writer)
         {
             NetworkConnection target = conn ?? __instance.connectionToClient;
-            if (target is LocalSeatConnection) conn = NetworkServer.localConnection;
+            if (!(target is LocalSeatConnection seatConn)) return true;
+            Mirror.RemoteCalls.CmdDelegate rpc = NetworkClient.active ? Mirror.RemoteCalls.RemoteCallHelper.GetDelegate(methodHash(invokeClass, rpcName)) : null;
+            if (rpc == null)
+            {
+                conn = NetworkServer.localConnection; // como antes: pela conexão de quem hospeda
+                return true;
+            }
+            SeatContext.Token t = SeatContext.Enter(seatConn.Seat);
+            try { rpc(__instance, new NetworkReader(writer.ToArraySegment()), null); }
+            catch (Exception e) { Plugin.Log.LogWarning($"P{seatConn.Seat + 1}: {rpcName}: {e.Message}"); }
+            finally { SeatContext.Exit(t); }
+            return false;
         }
     }
 

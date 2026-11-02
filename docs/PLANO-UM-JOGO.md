@@ -102,6 +102,34 @@ Pela internet, cada pessoa tem no jogo dela a autoridade sobre o que é dela e u
 Para conferir no jogo, com 2 ou mais jogadores: queimada (P2 pega e arremessa a bola), sapo e kart, cada desafio
 de responder (P2 responde certo e ganha os pontos dele; errado, perde), e o placar no fim da partida.
 
+## Revisão de todas as fases (02/11/2026)
+
+Tudo o que o P1 tem e faz, os outros também. O que faltava e o porquê (cada um tem o detalhe no código):
+
+- **A parte de cliente de cada desafio (SeatClients):** pela internet, cada jogo roda a parte "de cliente" do
+  desafio para o seu jogador (pular X vezes, não se mexer, pisar no ladrilho certo, somar os números, memorizar,
+  entrar na porta). Aqui rodava só para quem hospeda. Cada jogador do sofá roda o começo, cada quadro, o fim e o aviso
+  de quem passou, no contexto dele, com a parte de servidor desligada, o estado do desafio separado e o mesmo sorteio.
+  Os eventos do desafio usam o estado de quem os causou, e os ouvintes não são registrados em dobro. Ficam de fora os
+  do painel (SeatPads) e os feitos em Lua.
+- **Câmera ativa por jogador (SeatCameras):** a mira, o "usar" (pegar o caranguejo), o arremesso e o tiro saem da
+  câmera ativa, que era uma só (a de quem hospeda).
+- **Encostar (SeatTriggers):** o que a fase faz quando alguém encosta (a corda do "Pular a Corda", zonas, o ponto
+  de controle do kart) roda no contexto de quem encostou.
+- **Comandos de objetos da fase (CommandSenders):** o "passei no ponto de controle" do kart e a resposta do chefe de
+  perguntas contam para quem mandou, não para quem hospeda.
+- **Mensagens só para um jogador (TargetRpc):** rodam já no contexto dele, também as que vêm da fase.
+- **Kart e sapo (SeatPawns):** com uma pessoa só no lobby da Steam, o jogo entrega os veículos antes de os jogadores
+  do sofá nascerem; a entrega roda de novo para quem ficou sem. Na largada, todos são soltos. A câmera do veículo
+  entra na tela dividida.
+- **Empurrar, socar, atirar (SeatLayers), o ácido (SeatKiller):** a camada do "jogador local".
+- **Chefe de perguntas (SeatPads):** painel de escolha para cada um.
+- **Rodadas especiais:** Turbo, movimento invertido e câmera virada valem para todos.
+- **O fogo do jetpack** no pulo duplo aparece para os outros.
+
+Ainda só para quem hospeda (avisos visuais, sem mudar o jogo): os textos de papel e de duelo nos chefes Ghosthunt
+e Standoff, o medidor de nitro do kart e a rodada "Cadê todo mundo?" (os outros ficam visíveis para todos).
+
 ## Riscos
 
 - Código do jogo que olha "o jogador local" fora do código dos personagens e do que eles têm (alguns objetos de
