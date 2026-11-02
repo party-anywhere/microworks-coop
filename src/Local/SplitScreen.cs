@@ -144,7 +144,17 @@ namespace MicroWorksCoop.Local
             {
                 // câmeras que desenham numa imagem do jogo (retrato, espelho) ficam como estão
                 if (cam == null || cam.targetTexture != null && !PhoneViews.IsOurs(cam.targetTexture)) continue;
-                if (cam.targetTexture != phone) cam.targetTexture = phone;
+                if (cam.targetTexture != phone)
+                {
+                    cam.targetTexture = phone;
+                    if (phone == null) cam.ResetAspect(); // de volta à TV: o formato da parte dele
+                }
+                // no celular, o formato da imagem dele: sem isso a câmera guardava o da TV e a imagem saía esticada
+                if (phone != null)
+                {
+                    float aspect = (float)phone.width / phone.height;
+                    if (Mathf.Abs(cam.aspect - aspect) > 0.001f) cam.aspect = aspect;
+                }
                 if (cam.rect != part) cam.rect = part;
                 if (!split) continue;
                 int camId = cam.GetInstanceID();

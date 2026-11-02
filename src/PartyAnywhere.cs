@@ -66,7 +66,7 @@ namespace PartyAnywhere
         public const int ViewMaxWidth = 1280;
         public const int ViewMaxHeight = 720;
         /// <summary>Altura da imagem do celular (a largura segue o formato da tela dele).</summary>
-        public const int ViewHeight = 360;
+        public const int ViewHeight = 540;
 
         const string ShmName = @"Local\PartyAnywhere.v1";
         const string ViewPrefix = @"Local\PartyAnywhere.v1.view.";
@@ -400,9 +400,11 @@ namespace PartyAnywhere
             byte* v = View(seat);
             uint a = v == null ? 0 : Volatile.Read(ref ((ViewHeader*)v)->AspectMilli);
             if (a < 1000 || a > 3000) a = 16000 / 9;
-            int w = (int)((ViewHeight * a + 500) / 1000) & ~1;
-            width = w > ViewMaxWidth ? ViewMaxWidth : w;
-            height = ViewHeight;
+            int w = (int)((ViewHeight * a + 500) / 1000) & ~1, h = ViewHeight;
+            // tela muito larga: a largura para no máximo e a altura diminui junto (cortar só a largura esticaria)
+            if (w > ViewMaxWidth) { w = ViewMaxWidth; h = (int)((w * 1000 + a / 2) / a) & ~1; }
+            width = w;
+            height = h;
         }
 
         /// <summary>

@@ -25,12 +25,12 @@ namespace MicroWorksCoop.Local
 
         /// <summary>
         /// A imagem onde a câmera de quem está no celular desenha: no formato da tela do celular dele (o Hub diz;
-        /// 360 de altura), assim enche a tela, sem faixas. Muda junto quando a pessoa gira o celular.
+        /// 540 de altura), assim enche a tela, sem faixas. Muda junto quando a pessoa gira o celular.
         /// </summary>
         public static RenderTexture TargetFor(int seat)
         {
             RenderTexture rt = targets[seat];
-            int w = 640, h = 360;
+            int w = 960, h = 540;
             if (Plugin.Hub != null) Plugin.Hub.ViewSize(seat, out w, out h);
             if (rt != null && rt.width == w && rt.height == h) return rt;
             if (rt != null) Release(seat);
