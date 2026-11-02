@@ -175,7 +175,7 @@ namespace MicroWorksCoop.Local
             // O do jogador (mira, avisos de "usar") se estica até a parte, um pouco menor quanto menor ela for.
             if (!huds.TryGetValue(id, out RectTransform[] frames))
             {
-                huds[id] = frames = pc.playerHUD != null ? Frames(pc.playerHUD.GetComponentsInChildren<Canvas>(true)) : new RectTransform[0];
+                huds[id] = frames = Frames(PlayerCanvases(pc));
                 Draw(frames, phone != null ? pc.playerCamera : null);
             }
             float scale = Mathf.Clamp(Mathf.Sqrt(part.width * part.height) * 1.25f, 0.35f, 1f);
@@ -333,6 +333,28 @@ namespace MicroWorksCoop.Local
         }
 
         // cada tela (Canvas) raiz do HUD ganha uma moldura que ocupa a parte do jogador; o que estava nela vai junto
+        // as telas do HUD do jogador e as de espectador ("Assistindo a", que aparece quando ele morre): as de espectador
+        // são da tela inteira, como o HUD, e iam para o meio da TV em vez da parte de quem morreu
+        static IEnumerable<Canvas> PlayerCanvases(PlayerController pc)
+        {
+            if (pc.playerHUD != null)
+                foreach (Canvas c in pc.playerHUD.GetComponentsInChildren<Canvas>(true)) yield return c;
+            if (pc.spectatorMaster == null) yield break;
+            foreach (Canvas c in pc.spectatorMaster.GetComponentsInChildren<Canvas>(true))
+                if (c.renderMode == RenderMode.ScreenSpaceOverlay && (pc.playerHUD == null || !c.transform.IsChildOf(pc.playerHUD.transform)))
+                    yield return c;
+            // a caixa "Assistindo a" pode estar numa tela fora da câmera de espectador
+            if (pc.spectatorMaster.spectatorParent != null)
+            {
+                Canvas root = null;
+                for (Transform t = pc.spectatorMaster.spectatorParent.transform; t != null; t = t.parent)
+                    if (t.TryGetComponent(out Canvas c)) root = c;
+                if (root != null && root.renderMode == RenderMode.ScreenSpaceOverlay
+                    && !root.transform.IsChildOf(pc.spectatorMaster.transform) && (pc.playerHUD == null || !root.transform.IsChildOf(pc.playerHUD.transform)))
+                    yield return root;
+            }
+        }
+
         static RectTransform[] Frames(IEnumerable<Canvas> canvases)
         {
             var frames = new List<RectTransform>();

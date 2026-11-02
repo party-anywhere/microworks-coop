@@ -36,6 +36,9 @@ namespace MicroWorksCoop.Input
         // a câmera por arrastar o dedo no celular (graus desde o quadro anterior), somada ao analógico direito
         static readonly float[] lookX = new float[Client.MaxSeats];
         static readonly float[] lookY = new float[Client.MaxSeats];
+        // a lata: quanto falta para o chacoalhar chegar onde o analógico (ou o dedo) manda; NaN = sem lata agora
+        static float canAxis = float.NaN;
+        static readonly float[] canDrag = new float[Client.MaxSeats];
         static bool hostRouting;
         static bool menu;
         static Vector2 cursor;
@@ -120,8 +123,16 @@ namespace MicroWorksCoop.Input
             {
                 case "Horizontal": value = pad.Lx; return true;
                 case "Vertical": value = pad.Ly; return true;
-                case "Mouse X": value = Look(pad.Rx, LookYawDegPerSec) + Degrees(lookX[Seat]); return true;
-                case "Mouse Y": value = Look(pad.Ry, LookPitchDegPerSec) + Degrees(lookY[Seat]); return true;
+                case "Mouse X":
+                case "Mouse Y":
+                    // segurando a lata: a câmera fica parada (no alto ou embaixo do todo, o jogo não conta o chacoalhar)
+                    // e a lata lê o próprio valor
+                    if (!float.IsNaN(canAxis)) { value = canAxis; return true; }
+                    if (HoldingCan()) { value = 0f; return true; }
+                    value = name == "Mouse X"
+                        ? Look(pad.Rx, LookYawDegPerSec) + Degrees(lookX[Seat])
+                        : Look(pad.Ry, LookPitchDegPerSec) + Degrees(lookY[Seat]);
+                    return true;
                 case "Mouse ScrollWheel":
                     value = Pressed((uint)Buttons.Up) ? ZoomStep : Pressed((uint)Buttons.Down) ? -ZoomStep : 0f;
                     return true;
@@ -220,6 +231,31 @@ namespace MicroWorksCoop.Input
 
         /// <summary>A vaga tem alguém conectado agora (controle ou celular).</summary>
         public static bool SeatActive(int seat) { Tick(); return active[seat]; }
+
+        /// <summary>
+        /// A lata do "Chacoalhe" conta uma chacoalhada cada vez que o mouse vai de um lado ao outro até o fim (o limite
+        /// da lata). O analógico como mouse não chega lá a tempo. Aqui o analógico direito
+        /// é a posição da lata: até o fim para um lado, até o fim para o outro = uma chacoalhada. No celular, arrastar
+        /// o dedo na área da câmera faz o mesmo. Devolve o valor do eixo que leva a lata até lá neste quadro.
+        /// </summary>
+        public static void CanShake(bool horizontal, float limit, float current)
+        {
+            Tick();
+            int s = Seat;
+            float stick = horizontal ? pads[s].Rx : pads[s].Ry;
+            // o dedo: uns 15 graus de arrasto vão de um lado ao outro
+            canDrag[s] = Mathf.Clamp(canDrag[s] + (horizontal ? lookX[s] : lookY[s]) * limit / 15f, -limit, limit);
+            float target = stick > 0.2f || stick < -0.2f ? Mathf.Clamp(stick / 0.7f, -1f, 1f) * limit : canDrag[s];
+            canAxis = target - current;
+        }
+
+        public static void CanShakeDone() => canAxis = float.NaN;
+
+        static bool HoldingCan()
+        {
+            PlayerController pc = GlobalData.localPlayer;
+            return pc != null && pc.Weapon is SodaCan;
+        }
 
         // ---- interno ----
 
