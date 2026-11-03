@@ -318,6 +318,53 @@ namespace MicroWorksCoop.Local
     }
 
     /// <summary>
+    /// O fim da partida põe quem perdeu na pose de derrota (agachado, sem correr nem empurrar) e a partida seguinte tira:
+    /// o jogo faz isso só no jogador local. Vale para cada jogador do sofá, pelo resultado dele.
+    /// </summary>
+    static class SeatLoserState
+    {
+        [HarmonyPatch(typeof(MicrogameCoordinator), nameof(MicrogameCoordinator.ParseWinners))]
+        static class Winners
+        {
+            static void Postfix(uint[] winners)
+            {
+                if (SeatContext.IsExtra) return;
+                for (int s = 0; s < PartyAnywhere.Client.MaxSeats; s++)
+                {
+                    PlayerController pc = SeatContext.PlayerOf(s);
+                    if (pc == null) continue;
+                    bool won = winners != null && Array.IndexOf(winners, pc.netId) >= 0;
+                    SeatContext.Token t = SeatContext.Enter(s);
+                    try { pc.SetLoserStatus(!won); }
+                    finally { SeatContext.Exit(t); }
+                }
+            }
+        }
+
+        // a partida começa: o jogo tira a derrota do jogador local (StartGame); tira a de todos
+        [HarmonyPatch(typeof(PlayerController), nameof(PlayerController.SetLoserStatus))]
+        static class Cleared
+        {
+            static void Postfix(PlayerController __instance, bool value)
+            {
+                if (!value && !SeatContext.IsExtra && __instance == GlobalData.localPlayer) ClearAll();
+            }
+        }
+
+        static void ClearAll()
+        {
+            for (int s = 0; s < PartyAnywhere.Client.MaxSeats; s++)
+            {
+                PlayerController pc = SeatContext.PlayerOf(s);
+                if (pc == null || !pc.IsLoser) continue;
+                SeatContext.Token t = SeatContext.Enter(s);
+                try { pc.SetLoserStatus(false); }
+                finally { SeatContext.Exit(t); }
+            }
+        }
+    }
+
+    /// <summary>
     /// Rodadas especiais e regras da rodada que mudam só o jogador local (Turbo: mais rápido; movimento invertido;
     /// câmera virada): valem também para cada jogador do sofá.
     /// </summary>

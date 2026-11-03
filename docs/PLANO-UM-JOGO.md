@@ -130,10 +130,45 @@ Tudo o que o P1 tem e faz, os outros também. O que faltava e o porquê (cada um
 Ainda só para quem hospeda (avisos visuais, sem mudar o jogo): os textos de papel e de duelo nos chefes Ghosthunt
 e Standoff, o medidor de nitro do kart e a rodada "Cadê todo mundo?" (os outros ficam visíveis para todos).
 
+## Depois do teste na TV com 3 pessoas (03/11/2026)
+
+O que a pessoa achou jogando, a causa e a correção (geral, não por desafio):
+
+- **Bola de neve no Congela-circuito: só o P1 fazia a bola.** A neve do chão é um objeto da fase que cada PC tem
+  sozinho, e guarda um jogador só ("quem está enrolando") e lê o controle de quem hospeda. **SeatUsables:** todo
+  objeto usável que não é de rede (a neve, os botões de apertar, os monitores de número, a lixeira, o pato) tem um
+  estado por jogador: usar mexe no estado de quem usou, no contexto dele; o código da fase roda no de cada um.
+- **O P1 não acertava os outros com a bola.** O projétil passa pela camada do jogador local e só o jogo de quem lançou
+  conta o acerto. **SeatProjectiles:** o projétil roda no contexto de quem lançou; enquanto há jogadores do sofá, a
+  camada dos projéteis bate nos jogadores locais (menos em quem lançou), e no choque os outros são "de outro PC". O
+  acerto em si mesmo não conta, como no jogo de quem joga pela internet.
+- **Congelar, a fogueira, a plataforma de cada um.** As reações dos chefes e desafios a um jogador ("o congelamento
+  de fulano mudou") decidiam pelo jogador local. **SeatCallbacks:** rodam no contexto do jogador, com as peças do HUD
+  da partida (a barra de congelamento) trocadas pelas da cópia dele.
+- **Kart: os outros não pegavam os poderes.** O poder ia para o painel do HUD de quem hospeda. Agora vai para o HUD de
+  quem pegou. No celular, o HUD segue a câmera ligada (a do kart ou do sapo), e não some mais dentro do veículo.
+- **Correr.** No celular, o "Correr" fica em cima do analógico: um toque deixa correndo até parar de andar (no
+  controle, segurar LB continua igual; no kart e no sapo, o LB é o turbo e vale só enquanto segura). E o fim da
+  partida põe quem perdeu agachado (sem correr), e a partida seguinte tira, para cada jogador do sofá também
+  (antes, só para quem hospeda).
+- **Placar.** Quem entra se apresentava ao placar só no HUD dele: depois de alguém entrar ou sair, o placar de todos é
+  refeito.
+
+Conferido no jogo com 3 e 4 jogadores (celulares de mentira, diagnóstico no log): neve para todos, lata para todos em
+todas as rodadas, caranguejo na mão de cada um e de volta à arena, cores e ladrilhos com resultado de cada um, kart
+acelerando, virando e com turbo para todos, correr para todos, zero exceções no log.
+
+Opções de desenvolvimento novas (BepInEx\config): `ForcarDesafios`, `ForcarChefe`, `RodadasAteOChefe` (testar um
+desafio sem esperar o sorteio), `DiagnosticoJogadores` (armas, acertos, quem passou e a velocidade de cada um no
+log), `DiagnosticoPegarCaranguejo` e `PrintsACadaSegundos` (prints da tela do jogo em BepInEx\prints).
+
 ## Riscos
 
-- Código do jogo que olha "o jogador local" fora do código dos personagens e do que eles têm (alguns objetos de
-  cena usáveis, projéteis só visuais): vale só para quem hospeda. Cada caso achado vira um ajuste.
+- Código do jogo que olha "o jogador local" fora do código dos personagens e do que eles têm: vale só para quem
+  hospeda. Cada caso achado vira um ajuste. O que já é geral: objetos usáveis da fase, projéteis, encostar, reações
+  dos chefes e desafios a um jogador, mensagens só para um jogador.
+- Uma mensagem para todos (ClientRpc) roda uma vez, no contexto do dono do objeto. Efeitos só visuais que o jogo
+  mostra "na tela de quem foi atingido" (a mancha da bola de neve) não aparecem na parte de quem foi atingido.
 - Desempenho: cada câmera é a cena desenhada de novo; no vídeo integrado, com 10 jogadores, ~19 quadros por
   segundo no preset mais leve.
 - O que o jogo mostra fora do HUD da partida (avisos, votação, combo) segue um só, na parte de quem hospeda.

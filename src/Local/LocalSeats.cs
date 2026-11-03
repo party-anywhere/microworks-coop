@@ -57,10 +57,20 @@ namespace MicroWorksCoop.Local
                 if (seat == Plugin.Seat) continue;
                 bool wanted = hub.GetSeatState(seat) != SeatState.Empty; // quem caiu e está voltando guarda o personagem
                 bool alive = SeatContext.PlayerOf(seat) != null;
-                if (wanted && !alive) Spawn(seat);
-                else if (!wanted && alive) Despawn(seat);
+                if (wanted && !alive) { Spawn(seat); refreshAt = Time.unscaledTime + RefreshDelay; }
+                else if (!wanted && alive) { Despawn(seat); refreshAt = Time.unscaledTime + RefreshDelay; }
+            }
+            // o personagem que entra se apresenta ao placar no contexto dele (só o HUD dele via); depois que todos se
+            // apresentaram, o placar de todos é refeito
+            if (refreshAt > 0f && Time.unscaledTime >= refreshAt && PlayersManager.singleton != null)
+            {
+                refreshAt = -1f;
+                PlayersManager.singleton.SortAndRefreshScoreboard();
             }
         }
+
+        const float RefreshDelay = 1f;
+        float refreshAt = -1f;
 
         static void Spawn(int seat)
         {

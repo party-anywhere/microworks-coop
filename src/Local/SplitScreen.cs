@@ -35,6 +35,7 @@ namespace MicroWorksCoop.Local
         readonly Dictionary<int, AudioListener[]> listeners = new Dictionary<int, AudioListener[]>();
         readonly Dictionary<int, RectTransform[]> huds = new Dictionary<int, RectTransform[]>();      // HUD do jogador
         readonly Dictionary<int, RectTransform[]> matchHuds = new Dictionary<int, RectTransform[]>(); // HUD da partida
+        readonly Dictionary<int, Camera> drawnWith = new Dictionary<int, Camera>(); // a câmera do HUD no celular
         readonly Dictionary<int, (Renderer renderer, bool view)[]> bodies = new Dictionary<int, (Renderer, bool)[]>();
         readonly Dictionary<int, int> originalMask = new Dictionary<int, int>(); // câmera → máscara do jogo
         readonly Dictionary<Renderer, int> originalLayer = new Dictionary<Renderer, int>(); // peça → camada do jogo
@@ -184,10 +185,14 @@ namespace MicroWorksCoop.Local
             // os HUDs ficam por cima de tudo, como no jogo, mas dentro da parte do jogador: o conteúdo de cada tela
             // do HUD vai para uma moldura no lugar da parte dele.
             // O do jogador (mira, avisos de "usar") se estica até a parte, um pouco menor quanto menor ela for.
+            // no celular o HUD desenha pela câmera que está ligada: a do personagem ou, no kart e no sapo, a do veículo
+            Camera hudCamera = phone != null ? ActiveCamera(pc, cams) : null;
+            if (drawnWith.TryGetValue(id, out Camera was) && was != hudCamera) { huds.Remove(id); matchHuds.Remove(id); }
+            drawnWith[id] = hudCamera;
             if (!huds.TryGetValue(id, out RectTransform[] frames))
             {
                 huds[id] = frames = Frames(PlayerCanvases(pc));
-                Draw(frames, phone != null ? pc.playerCamera : null);
+                Draw(frames, hudCamera);
             }
             float scale = Mathf.Clamp(Mathf.Sqrt(part.width * part.height) * 1.25f, 0.35f, 1f);
             Vector2 center = part.center;
@@ -199,7 +204,7 @@ namespace MicroWorksCoop.Local
             if (!matchHuds.TryGetValue(id, out RectTransform[] match))
             {
                 matchHuds[id] = match = Frames(HudCopies.CanvasesOf(seat));
-                Draw(match, phone != null ? pc.playerCamera : null);
+                Draw(match, hudCamera);
             }
             float fit = Mathf.Min(part.width, part.height);
             var top = new Vector2(part.center.x, part.yMax);
@@ -209,6 +214,14 @@ namespace MicroWorksCoop.Local
                 Vector2 full = Design(frame, out float unit);
                 Fit(frame, top, full, fit * unit, new Vector2(0f, -full.y * fit * unit / 2f));
             }
+        }
+
+        static Camera ActiveCamera(PlayerController pc, Camera[] cams)
+        {
+            if (pc.playerCamera != null && pc.playerCamera.isActiveAndEnabled) return pc.playerCamera;
+            foreach (Camera cam in cams)
+                if (cam != null && cam.isActiveAndEnabled && PhoneViews.IsOurs(cam.targetTexture)) return cam;
+            return pc.playerCamera;
         }
 
         // no celular, o HUD vai dentro da imagem que a câmera do jogador desenha; na TV, volta a ser como o jogo fez

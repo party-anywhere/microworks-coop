@@ -39,6 +39,10 @@ namespace MicroWorksCoop.Input
         // a lata: quanto falta para o chacoalhar chegar onde o analógico (ou o dedo) manda; NaN = sem lata agora
         static float canAxis = float.NaN;
         static readonly float[] canDrag = new float[Client.MaxSeats];
+        // correr com um toque (Sprinting)
+        const float StopGrace = 0.6f;
+        static readonly bool[] sprintLatch = new bool[Client.MaxSeats];
+        static readonly float[] lastMoving = new float[Client.MaxSeats];
         static bool hostRouting;
         static bool menu;
         static Vector2 cursor;
@@ -145,6 +149,7 @@ namespace MicroWorksCoop.Input
 
         public static bool TryButton(string name, Edge edge, out bool value)
         {
+            if (name == "Sprint" && edge == Edge.Held) { value = Sprinting(); return true; }
             if (name == "Horizontal" || name == "Vertical")
             {
                 float v = name == "Horizontal" ? pads[Seat].Lx : pads[Seat].Ly;
@@ -250,6 +255,24 @@ namespace MicroWorksCoop.Input
         }
 
         public static void CanShakeDone() => canAxis = float.NaN;
+
+        /// <summary>
+        /// Correr: segurar LB, como no controle. No celular, o "Correr" fica em cima do analógico de andar, e o mesmo
+        /// polegar não segura os dois: um toque no LB deixa correndo até parar de andar (ou tocar de novo, ou agachar).
+        /// No kart e no sapo, o LB é o turbo: só enquanto segura.
+        /// </summary>
+        static bool Sprinting()
+        {
+            int s = Seat;
+            Pad pad = pads[s];
+            float now = Time.unscaledTime;
+            // o polegar sai do analógico para tocar no LB: parado por um instante ainda conta como andando
+            if (pad.Lx * pad.Lx + pad.Ly * pad.Ly > 0.04f) lastMoving[s] = now;
+            if (Pressed((uint)Buttons.LB)) sprintLatch[s] = true;
+            PlayerController pc = GlobalData.localPlayer;
+            if (pc != null && pc.IsPossessingPawn || now - lastMoving[s] > StopGrace || Held((uint)Buttons.B)) sprintLatch[s] = false;
+            return Held((uint)Buttons.LB) || sprintLatch[s];
+        }
 
         static bool HoldingCan()
         {

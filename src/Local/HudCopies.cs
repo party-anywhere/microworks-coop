@@ -75,6 +75,36 @@ namespace MicroWorksCoop.Local
         public static Canvas[] CanvasesOf(int seat) =>
             seat < 0 ? mainCanvases : copies.TryGetValue(seat, out Copy c) ? c.Canvases : new Canvas[0];
 
+        /// <summary>
+        /// A peça equivalente na cópia do HUD de um jogador extra (a barra de congelamento dele, o texto dele), ou null
+        /// se a peça não é do HUD da partida ou não tem cópia.
+        /// </summary>
+        public static Object TwinOf(Object o, int seat)
+        {
+            if (o == null || main == null || !copies.TryGetValue(seat, out Copy c) || c.Root == null) return null;
+            Transform t = o is Component comp ? comp.transform : o is GameObject go ? go.transform : null;
+            if (t == null || !t.IsChildOf(main.transform)) return null;
+            if (o is MonoBehaviour mb) return c.Twin.TryGetValue(mb.GetInstanceID(), out Component twin) && twin != null ? twin : null;
+            // o resto pelo caminho (a cópia tem os mesmos nomes)
+            var path = new List<string>();
+            for (Transform p = t; p != main.transform; p = p.parent) path.Add(p.name);
+            path.Reverse();
+            Transform found = c.Root.transform.Find(string.Join("/", path));
+            if (found == null) return null;
+            if (o is GameObject) return found.gameObject;
+            return found.GetComponent(o.GetType());
+        }
+
+        // o poder guardado (kart, sapo, Railwars) aparece no HUD de quem o pegou: o jogo lê o painel do HUD da partida direto
+        [HarmonyPatch(typeof(PowerupManager), "Display", MethodType.Getter)]
+        static class PowerupOnOwnHud
+        {
+            static void Postfix(ref PowerupDisplay __result)
+            {
+                if (SeatContext.IsExtra && TwinOf(__result, SeatContext.Seat) is PowerupDisplay twin) __result = twin;
+            }
+        }
+
         /// <summary>Chamado a cada quadro: uma cópia por jogador extra, refeitas quando o HUD do jogo muda (fase nova).</summary>
         public static void Tick()
         {
@@ -264,6 +294,8 @@ namespace MicroWorksCoop.Local
         static void Call(Copy c, MethodBase method, Component original, object[] args)
         {
             if (!c.Twin.TryGetValue(original.GetInstanceID(), out Component twin) || twin == null) return;
+            // o aviso de rodada especial fica numa tela que é uma só (na parte de quem hospeda): a cópia não tem
+            if (method.Name.Contains("SpecialRound") && c.Hud != null && c.Hud.specialRoundObject == null) return;
             Invoke(c, () => method.Invoke(twin, args), method.Name);
         }
 

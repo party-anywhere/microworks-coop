@@ -55,6 +55,10 @@ namespace MicroWorksCoop
             harmony.PatchAll(typeof(Plugin).Assembly);
             Local.SeatTriggers.Install(harmony);
             Local.SeatClients.InstallEvents(harmony);
+            Local.SeatUsables.Install(harmony);
+            Local.SeatProjectiles.Install(harmony);
+            Local.SeatCallbacks.Install(harmony);
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += (_, __) => Local.SeatUsables.Clear();
             gameObject.AddComponent<CursorOverlay>();
             // os outros jogadores do lobby entram nesta partida, com a tela dividida aqui
             gameObject.AddComponent<LocalPlayers>();
@@ -64,6 +68,11 @@ namespace MicroWorksCoop
             gameObject.AddComponent<SeatMarkers>();
             if (Config.Bind("Desenvolvimento", "DiagnosticoTelaDividida", false, "Anota no log onde cada jogador aparece na câmera de quem hospeda.").Value)
                 gameObject.AddComponent<SplitDiag>();
+            if (Config.Bind("Desenvolvimento", "DiagnosticoJogadores", false, "Anota no log armas, acertos, quem passou e a velocidade de cada jogador.").Value)
+                gameObject.AddComponent<SeatDiag>();
+            float prints = Config.Bind("Desenvolvimento", "PrintsACadaSegundos", 0f, "Grava a tela do jogo em BepInEx\\prints a cada tantos segundos, com a tela dividida (0 = não grava).").Value;
+            if (prints > 0f) gameObject.AddComponent<DevPrints>().Every = prints;
+            SeatDiag.GrabCrabs = Config.Bind("Desenvolvimento", "DiagnosticoPegarCaranguejo", false, "No \"Pegue um caranguejo\", cada jogador sem nada na mão pega um caranguejo sozinho (para testar sem mirar).").Value;
             // para desenvolver: pular o tutorial e criar a partida sozinho (nada é gravado nas configurações do
             // jogo); pela linha de comando ou pelo BepInEx\config\com.joaocaioo.microworks-coop.cfg
             bool devSkip = Config.Bind("Desenvolvimento", "PularTutorial", false, "A cópia que hospeda pula o tutorial.").Value;
@@ -72,6 +81,10 @@ namespace MicroWorksCoop
                 "Preset de vídeo do jogo enquanto a tela está dividida (VeryLow, Low, Medium, High, Ultra; vazio = as suas configurações). Com um jogador só, voltam as suas. Não muda as suas configurações.").Value;
             if (Config.Bind("Desenvolvimento", "MedirDesempenho", false, "Cada cópia anota fps e memória no log a cada 10 s.").Value)
                 gameObject.AddComponent<PerfLog>();
+            string forced = Config.Bind("Desenvolvimento", "ForcarDesafios", "", "Desafios (nomes internos, separados por vírgula) que entram no lugar do sorteio, em ordem. Vazio = o sorteio do jogo.").Value;
+            DevForce.Microgames = forced.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            DevForce.Boss = Config.Bind("Desenvolvimento", "ForcarChefe", "", "Chefe (nome interno) que entra no lugar do sorteio. Vazio = o sorteio do jogo.").Value.Trim();
+            DevForce.RoundsUntilBoss = Config.Bind("Desenvolvimento", "RodadasAteOChefe", 0, "Rodadas antes do chefe (0 = as da partida).").Value;
             DevSkipTutorial = devSkip || Array.IndexOf(args, "-pa-skip-tutorial") >= 0;
             if (devHost || Array.IndexOf(args, "-pa-dev-host") >= 0) gameObject.AddComponent<DevHost>();
         }
