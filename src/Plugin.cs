@@ -71,7 +71,12 @@ namespace MicroWorksCoop
             if (Config.Bind("Desenvolvimento", "DiagnosticoJogadores", false, "Anota no log armas, acertos, quem passou e a velocidade de cada jogador.").Value)
                 gameObject.AddComponent<SeatDiag>();
             float prints = Config.Bind("Desenvolvimento", "PrintsACadaSegundos", 0f, "Grava a tela do jogo em BepInEx\\prints a cada tantos segundos, com a tela dividida (0 = não grava).").Value;
-            if (prints > 0f) gameObject.AddComponent<DevPrints>().Every = prints;
+            if (prints > 0f)
+            {
+                DevPrints dp = gameObject.AddComponent<DevPrints>();
+                dp.Every = prints;
+                dp.Circle = Config.Bind("Desenvolvimento", "PrintsEmRoda", false, "Antes de cada print, os jogadores ficam em roda, de frente uns para os outros.").Value;
+            }
             SeatDiag.GrabCrabs = Config.Bind("Desenvolvimento", "DiagnosticoPegarCaranguejo", false, "No \"Pegue um caranguejo\", cada jogador sem nada na mão pega um caranguejo sozinho (para testar sem mirar).").Value;
             // para desenvolver: pular o tutorial e criar a partida sozinho (nada é gravado nas configurações do
             // jogo); pela linha de comando ou pelo BepInEx\config\com.joaocaioo.microworks-coop.cfg

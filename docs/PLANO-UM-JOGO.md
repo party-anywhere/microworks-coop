@@ -160,7 +160,8 @@ acelerando, virando e com turbo para todos, correr para todos, zero exceções n
 
 Opções de desenvolvimento novas (BepInEx\config): `ForcarDesafios`, `ForcarChefe`, `RodadasAteOChefe` (testar um
 desafio sem esperar o sorteio), `DiagnosticoJogadores` (armas, acertos, quem passou e a velocidade de cada um no
-log), `DiagnosticoPegarCaranguejo` e `PrintsACadaSegundos` (prints da tela do jogo em BepInEx\prints).
+log), `DiagnosticoPegarCaranguejo`, `PrintsACadaSegundos` (prints da tela do jogo em BepInEx\prints) e `PrintsEmRoda` (os
+jogadores em roda, de frente uns para os outros, antes de cada print).
 
 ## Riscos
 
